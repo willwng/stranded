@@ -16,6 +16,8 @@ class SolverParams:
 
     # Rod parameters
     n: int
+    pos0: np.ndarray
+    vel: np.ndarray
     bishop_frame: np.ndarray
     l_bar: np.ndarray
     l_bar_edge: np.ndarray

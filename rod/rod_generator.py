@@ -29,3 +29,15 @@ class RodGenerator:
         thetas = thetas[1:]
         rod = Rod(pos=np.array(vertices), thetas=np.array(thetas))
         return rod
+
+    @staticmethod
+    def jittery_rod(n_points: int):
+        vertices = []
+        thetas = []
+        for i in range(n_points + 1):
+            pos = np.array([0, 0, i], dtype=np.float64) + np.random.normal(0, 0.1, 3)
+            thetas.append(0.0)
+            vertices.append(pos)
+        thetas = thetas[1:]
+        rod = Rod(pos=np.array(vertices), thetas=np.array(thetas))
+        return rod

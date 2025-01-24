@@ -5,7 +5,10 @@ from solver.solver_params import SolverParams
 
 
 class Stretch(Energy):
-    """ Represents the stretching energy of a rod (based on inextensible edges) """
+    """
+    Represents the stretching energy of a rod (based on inextensible edges)
+        - Best to use constraint rather than energy for this
+    """
 
     @staticmethod
     def compute_energy(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
@@ -34,4 +37,8 @@ class Stretch(Energy):
             l_bar_i = solver_params.l_bar_edge[i]
             d_energy_d_pos[i] -= solver_params.k * (l_i - l_bar_i) * e_i / l_i
             d_energy_d_pos[i + 1] += solver_params.k * (l_i - l_bar_i) * e_i / l_i
+            # Critical damping (Baumgarte stabilization)
+            gamma = 2 * np.sqrt(solver_params.k * solver_params.mass[i])
+            d_energy_d_pos[i] -= gamma * np.dot(solver_params.vel[i], e_i) * e_i / l_i
+            d_energy_d_pos[i + 1] += gamma * np.dot(solver_params.vel[i + 1], e_i) * e_i / l_i
         return d_energy_d_pos

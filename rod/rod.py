@@ -21,6 +21,7 @@ class Rod:
 
     # The following uniquely define a rod and are updated during solve
     pos: np.ndarray  # (n+1) x 3
+    vel: np.ndarray  # (n+1) x 3
     theta: np.ndarray  # n x 1
 
     # Update after center-lines (positions) are updated
@@ -34,6 +35,7 @@ class Rod:
     def __init__(self, pos: np.ndarray, thetas: np.ndarray):
         assert thetas.shape[0] == pos.shape[0] - 1
         self.pos = pos
+        self.vel = np.zeros_like(pos)
         self.theta = thetas
         self.n = thetas.shape[0] - 1
 

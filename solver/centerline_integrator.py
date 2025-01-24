@@ -1,5 +1,7 @@
 import numpy as np
 
+from constraints.clamp import Clamp
+from constraints.inextensibility import Inextensibility
 from energies.energy import Energy
 from solver.solver_params import SolverParams
 
@@ -13,37 +15,64 @@ class CenterlineIntegrator:
         for energy in energies:
             forces -= energy.d_energy_d_pos(pos, theta, solver_params)
 
-        # Zero out forces on root
-        forces[-1] = 0.0
+        # Fixed node constraint
+        # pos[-1] = solver_params.pos0
+        # solver_params.vel[-1] = 0.0
+        # forces[-1] = 0.0
 
-        # Finite diff check
-        from scipy.optimize import check_grad
-        def total_energy(p: np.ndarray):
-            energy_tot = 0.0
-            for e in energies:
-                energy_tot += e.compute_energy(p.reshape(-1, 3), theta, solver_params)
-            return energy_tot
-        def total_grad_energy(p: np.ndarray):
-            grad_energy = np.zeros_like(p)
-            for energy in energies:
-                grad_energy += energy.d_energy_d_pos(p.reshape(-1, 3), theta, solver_params).ravel()
-            return grad_energy
-        #
-        # print("Gradient check", check_grad(total_energy, total_grad_energy, pos.ravel()))
-        # # finite diff
-        # eps = 1e-6
-        # grad_est = np.zeros_like(forces)
-        # for i in range(len(pos)):
-        #     pos[i] += eps
-        #     e_plus = total_energy(pos.ravel())
-        #     pos[i] -= 2 * eps
-        #     e_minus = total_energy(pos.ravel())
-        #     pos[i] += eps
-        #     grad_est[i] = (e_plus - e_minus) / (2 * eps)
-        #
-        # print(" Finite diff:", grad_est)
-        # print(" Analytical:", total_grad_energy(pos.ravel()).reshape(-1, 3))
-        # quit()
-        #
+        # Use XPBD to solve for the new position of the other nodes
+        M_inv = np.diag(1 / solver_params.mass)
+        pred_pos = pos + solver_params.dt * solver_params.vel + 0.5 * solver_params.dt ** 2 * M_inv @ forces
+        solved_pos = CenterlineIntegrator.xpbd(pred_pos, solver_params)
+        solver_params.vel = (solved_pos - pos) / solver_params.dt
+        return solved_pos
 
-        return pos + solver_params.dt * forces
+    @staticmethod
+    def xpbd(pos, solver_params):
+        lambdas = np.zeros(pos.shape[0])
+
+        solver_iterations = 100
+        for _ in range(solver_iterations):
+            # Fixed node constraint
+            inv_mass = 1 / solver_params.mass[-1]
+            sum_mass = inv_mass
+            p1, p2 = pos[-1], solver_params.pos0
+            p1_minus_p2 = p1 - p2
+            distance = np.linalg.norm(p1_minus_p2)
+            constraint = distance
+            if constraint > 0:
+                compliance = 1e-12 / (solver_params.dt ** 2)
+                d_lambda = (-constraint - compliance * lambdas[-1]) / (sum_mass + compliance)
+                correction_vector = d_lambda * p1_minus_p2 / (distance + 1e-8)
+                lambdas[-1] += d_lambda
+                pos[-1] += inv_mass * correction_vector
+
+
+            # Inextensibility constraint
+            for i in range(solver_params.n + 1):
+                inv_mass_i1 = 1 / solver_params.mass[i]
+                inv_mass_i2 = 1 / solver_params.mass[i + 1]
+                sum_mass = inv_mass_i1 + inv_mass_i2
+                if sum_mass == 0:
+                    continue
+                p1_minus_p2 = pos[i] - pos[i + 1]
+                distance = np.linalg.norm(p1_minus_p2)
+                constraint = distance - solver_params.l_bar_edge[i]
+                compliance = 1e-12 / (solver_params.dt ** 2)
+                d_lambda = (-constraint - compliance * lambdas[i]) / (sum_mass + compliance)
+                correction_vector = d_lambda * p1_minus_p2 / (distance + 1e-8)
+                lambdas[i] += d_lambda
+
+                pos[i] += inv_mass_i1 * correction_vector
+                pos[i + 1] -= inv_mass_i2 * correction_vector
+                # c_j = c.constraint(pos, solver_params)
+                # grad = c.d_constraint_d_pos(pos, solver_params).ravel()
+                # grad = grad.reshape(1, -1)
+                # delta_lambdas[i] = (-c_j - alpha[i] * lambdas[i]) / (grad @ M_inv @ grad.T + alpha[i])
+                # delta_x = M_inv @ grad.T * delta_lambdas[i]
+                #
+                # lambdas[i] += delta_lambdas[i]
+                # pos += delta_x.ravel()
+                pass
+
+        return pos.reshape(-1, 3)
