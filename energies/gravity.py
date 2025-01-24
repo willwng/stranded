@@ -7,10 +7,7 @@ from solver.solver_params import SolverParams
 class Gravity(Energy):
     @staticmethod
     def compute_energy(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        energy = 0.0
-        for i in range(solver_params.n + 2):
-            energy += solver_params.mass[i] * solver_params.g * pos[i, 2]
-
+        energy = np.sum(solver_params.mass * solver_params.g * pos[:, 2])
         return energy
 
     @staticmethod
@@ -21,6 +18,5 @@ class Gravity(Energy):
     @staticmethod
     def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         d_energy_d_pos = np.zeros_like(pos)
-        for i in range(solver_params.n + 2):
-            d_energy_d_pos[i, 2] = solver_params.mass[i] * solver_params.g
+        d_energy_d_pos[:, 2] = np.multiply(solver_params.mass, solver_params.g)
         return d_energy_d_pos

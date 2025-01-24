@@ -15,14 +15,11 @@ class CenterlineIntegrator:
         for energy in energies:
             forces -= energy.d_energy_d_pos(pos, theta, solver_params)
 
-        # Fixed node constraint
-        # pos[-1] = solver_params.pos0
-        # solver_params.vel[-1] = 0.0
-        # forces[-1] = 0.0
-
-        # Use XPBD to solve for the new position of the other nodes
+        # Predicted position, with no constraints
         M_inv = np.diag(1 / solver_params.mass)
         pred_pos = pos + solver_params.dt * solver_params.vel + 0.5 * solver_params.dt ** 2 * M_inv @ forces
+
+        # Use XPBD to solve for the new position considering the constraints
         solved_pos = CenterlineIntegrator.xpbd(pred_pos, solver_params)
         solver_params.vel = (solved_pos - pos) / solver_params.dt
         return solved_pos
@@ -31,9 +28,9 @@ class CenterlineIntegrator:
     def xpbd(pos, solver_params):
         lambdas = np.zeros(pos.shape[0])
 
-        solver_iterations = 100
+        solver_iterations = 10
         for _ in range(solver_iterations):
-            # Fixed node constraint
+            # Fixed node constraint (just clamp the top node)
             inv_mass = 1 / solver_params.mass[-1]
             sum_mass = inv_mass
             p1, p2 = pos[-1], solver_params.pos0
@@ -47,8 +44,7 @@ class CenterlineIntegrator:
                 lambdas[-1] += d_lambda
                 pos[-1] += inv_mass * correction_vector
 
-
-            # Inextensibility constraint
+            # Inextensibility constraint for each edge
             for i in range(solver_params.n + 1):
                 inv_mass_i1 = 1 / solver_params.mass[i]
                 inv_mass_i2 = 1 / solver_params.mass[i + 1]
@@ -65,14 +61,6 @@ class CenterlineIntegrator:
 
                 pos[i] += inv_mass_i1 * correction_vector
                 pos[i + 1] -= inv_mass_i2 * correction_vector
-                # c_j = c.constraint(pos, solver_params)
-                # grad = c.d_constraint_d_pos(pos, solver_params).ravel()
-                # grad = grad.reshape(1, -1)
-                # delta_lambdas[i] = (-c_j - alpha[i] * lambdas[i]) / (grad @ M_inv @ grad.T + alpha[i])
-                # delta_x = M_inv @ grad.T * delta_lambdas[i]
-                #
-                # lambdas[i] += delta_lambdas[i]
-                # pos += delta_x.ravel()
                 pass
 
         return pos.reshape(-1, 3)

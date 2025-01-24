@@ -16,7 +16,7 @@ def create_frame(rod, i):
     ax = fig.add_subplot(111, projection='3d')
     Visualizer.draw_nodes(rod=rod, ax=ax)
     Visualizer.draw_edges(rod=rod, ax=ax)
-    Visualizer.draw_material_frame(rod, ax)
+    # Visualizer.draw_material_frame(rod, ax)
     ax.set_xlim([-rod.n / 2, rod.n / 2])
     ax.set_ylim([-rod.n / 2, rod.n / 2])
     ax.set_zlim([0, rod.n + 1])
