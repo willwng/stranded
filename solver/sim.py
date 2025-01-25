@@ -36,7 +36,7 @@ class Sim:
 
     @staticmethod
     def init(rod: Rod, B: np.ndarray, beta: float, k: float, g: float, p_top, mass: np.ndarray, energies: list[Energy], dt):
-        # Set up the solver
+        """ Initialization steps of simulation """
         solver_params = SolverParams(
             B=B,
             beta=beta,

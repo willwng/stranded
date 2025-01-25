@@ -7,13 +7,12 @@ import numpy as np
 class Twist(Energy):
     @staticmethod
     def compute_energy(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        energy = 0.0
         # From edge 1 to edge n
-        for i in range(1, solver_params.n + 1):
-            theta_i, theta_im1 = theta[i], theta[i - 1]
-            l_i = solver_params.l_bar[i]
-            m_i = theta_i - theta_im1
-            energy += solver_params.beta * m_i ** 2 / l_i
+        ind = np.arange(1, solver_params.n + 1)
+        theta_i, theta_im1 = theta[ind], theta[ind - 1]
+        l_i = solver_params.l_bar[ind]
+        m_i = theta_i - theta_im1
+        energy = np.sum(solver_params.beta * m_i ** 2 / l_i)
         return energy
 
     @staticmethod

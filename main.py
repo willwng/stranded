@@ -40,18 +40,18 @@ def main():
     mass = np.ones(n_vertices) / n_vertices * 0.1
     beta = 0.1
     k = 25.0
-    dt = 0.05
+    dt = 0.01
     g = 9.81
 
     # rod.theta *= 0.1
     # rod.pos *= 1.2
     create_frame(rod, 0)
 
-    energies = [Gravity()]
+    energies = [Bend(), Twist(), BendTwist(), Gravity()]
     p_top = rod.pos[-1]
     Sim.init(rod, B, beta, k, g, p_top, mass, energies, dt)
     for i in range(500):
-        if i % 10 == 0:
+        if i % 50 == 0:
             print(f"iteration {i}")
             create_frame(rod, i)
         Sim.step(rod, B, beta, k, g, p_top, mass, energies, dt)

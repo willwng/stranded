@@ -42,17 +42,18 @@ class Bend(Energy):
         return d_energy_d_theta
 
     @staticmethod
-    def compute_curvature_binormal(pos: np.ndarray, i: int):
+    def compute_curvature_binormal(pos: np.ndarray, i: int, solver_params: SolverParams):
         """ Computes the curvature binormal vector at vertex i """
         e_i, e_im1 = (pos[i + 1] - pos[i]), (pos[i] - pos[i - 1])
         kb_i = np.cross(2 * e_im1, e_i)
-        kb_i /= (np.linalg.norm(e_im1) * np.linalg.norm(e_i) + np.dot(e_im1, e_i))
+        l_bar_i, l_bar_im1 = solver_params.l_bar_edge[i], solver_params.l_bar_edge[i - 1]
+        kb_i /= (l_bar_i * l_bar_im1 + np.dot(e_im1, e_i))
         return kb_i
 
     @staticmethod
     def compute_omega(pos: np.ndarray, theta: np.ndarray, i: int, j: int, solver_params: SolverParams):
         """ Computes the material curvature """
-        kb_i = Bend.compute_curvature_binormal(pos, i)
+        kb_i = Bend.compute_curvature_binormal(pos, i, solver_params)
         # Compute the material frame
         u, v = solver_params.bishop_frame[j]
         theta_j = theta[j]

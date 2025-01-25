@@ -1,7 +1,5 @@
 import numpy as np
 
-from constraints.clamp import Clamp
-from constraints.inextensibility import Inextensibility
 from energies.energy import Energy
 from solver.solver_params import SolverParams
 
@@ -14,6 +12,35 @@ class CenterlineIntegrator:
         forces = np.zeros_like(pos)
         for energy in energies:
             forces -= energy.d_energy_d_pos(pos, theta, solver_params)
+
+        def total_energy(p):
+            p = p.reshape(-1, 3)
+            energy = 0
+            for e in energies:
+                energy += e.compute_energy(p, theta, solver_params)
+            return energy
+
+        def total_grad_energy(p):
+            p = p.reshape(-1, 3)
+            grad_energy = np.zeros_like(p)
+            for e in energies:
+                grad_energy += e.d_energy_d_pos(p, theta, solver_params)
+            return grad_energy.flatten()
+        #
+        # print("analytical gradient: ", total_grad_energy(pos.flatten()))
+        # # Compute finite diff
+        # h = 1e-6
+        # grad_fd = np.zeros_like(pos)
+        # for i in range(pos.shape[0]):
+        #     for j in range(pos.shape[1]):
+        #         pos[i, j] += h
+        #         energy_plus = total_energy(pos)
+        #         pos[i, j] -= 2 * h
+        #         energy_minus = total_energy(pos)
+        #         pos[i, j] += h
+        #         grad_fd[i, j] = (energy_plus - energy_minus) / (2 * h)
+        # print("finite difference gradient: ", grad_fd.ravel())
+        # quit()
 
         # Predicted position, with no constraints
         M_inv = np.diag(1 / solver_params.mass)

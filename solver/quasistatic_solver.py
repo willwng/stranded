@@ -23,8 +23,6 @@ class QuasistaticSolver:
             grad_energy = np.zeros_like(t)
             for energy in energies:
                 grad_energy += energy.d_energy_d_theta(pos, t, solver_params)
-            # TODO: Clamped edge
-            grad_energy[-1] = 0.0
             return grad_energy
 
         # Minimize total energy wrst theta
