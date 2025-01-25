@@ -43,13 +43,12 @@ def main():
     create_frame(rod, 0)
 
     energies = [Bend(), Twist(), BendTwist(), Gravity()]
-    p_top = rod.pos[0]
-    Sim.init(rod, B, beta, k, g, p_top, mass, energies, dt, xpbd_steps)
-    for i in range(3000):
-        if i % 100 == 0:
+    sim = Sim(rod, B, beta, k, g, mass, energies, dt, xpbd_steps)
+    for i in range(1000):
+        if i % 50 == 0:
             print(f"iteration {i}")
             create_frame(rod, i)
-        Sim.step(rod, B, beta, k, g, p_top, mass, energies, dt, xpbd_steps)
+        sim.step()
 
 
     plt.show()

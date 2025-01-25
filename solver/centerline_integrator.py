@@ -19,7 +19,9 @@ class CenterlineIntegrator:
 
         # Use XPBD to solve for the new position considering the constraints
         solved_pos = CenterlineIntegrator.xpbd(pred_pos, solver_params)
-        solver_params.vel = (solved_pos - pos) / solver_params.dt
+
+        # Disabled velocity (somehow it makes the simulation less stable)
+        # solver_params.vel = (solved_pos - pos) / solver_params.dt
         return solved_pos
 
     @staticmethod
