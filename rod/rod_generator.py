@@ -3,6 +3,8 @@ from rod.rod import Rod
 
 
 class RodGenerator:
+    """ A class for generating rods """
+
     @staticmethod
     def example_rod(n: int):
         # n + 2 vertices
@@ -10,6 +12,9 @@ class RodGenerator:
         for i in range(n + 2):
             pos = np.array([np.cos(0.8 * i), np.sin(0.8 * i), i], dtype=np.float64)
             vertices.append(pos)
+
+        # Reverse so that the last node is at the top
+        vertices.reverse()
 
         # n + 1 edges
         thetas = []

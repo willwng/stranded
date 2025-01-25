@@ -9,7 +9,7 @@ class Visualizer:
         pos = rod.pos
         ax.scatter(pos[:, 0], pos[:, 1], pos[:, 2], c='k', marker='o', s=0.1)
         # Pinned node, last node
-        ax.scatter(pos[-1, 0], pos[-1, 1], pos[-1, 2], c='b', marker='o', s=10)
+        ax.scatter(pos[0, 0], pos[0, 1], pos[0, 2], c='b', marker='o', s=10)
         return
 
     @staticmethod
@@ -48,4 +48,14 @@ class Visualizer:
             m1, m2 = np.cos(theta_i) * u + np.sin(theta_i) * v, -np.sin(theta_i) * u + np.cos(theta_i) * v
             ax.quiver(e_pos[0], e_pos[1], e_pos[2], m1[0], m1[1], m1[2], color='r')
             ax.quiver(e_pos[0], e_pos[1], e_pos[2], m2[0], m2[1], m2[2], color='g')
+        return
+
+    @staticmethod
+    def set_lims(rod: Rod, ax):
+        ax.set_xlim([-rod.n / 2, rod.n / 2])
+        ax.set_ylim([-rod.n / 2, rod.n / 2])
+        ax.set_zlim([0, rod.n + 1])
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
         return

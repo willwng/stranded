@@ -50,17 +50,6 @@ class BendTwist(Energy):
                     nabla_i_omega_kj = m_T @ nabla_i_kb_k - Vector.J @ np.outer(omega_kj, nabla_i_psi_j)
                     grad = den * nabla_i_omega_kj.T @ (B_j @ d_omega_kj)
                     d_energy_d_pos[i] += grad
-
-        # Second term of d E / d x_i = -partial E / partial theta_n * partial theta_n / partial x_i
-        l_bar_n = solver_params.l_bar[n]
-        omega_nn = Bend.compute_omega(pos, theta, n, n, solver_params)
-        omega_bar_nn = solver_params.omega_bar[n, 1]
-        B_n = solver_params.B[n]
-        m_n = theta[n] - theta[n - 1]
-        d_energy_d_theta_n = (1 / l_bar_n) * (
-                np.dot(omega_nn, Vector.J @ (B_n @ (omega_nn - omega_bar_nn))) + 2 * solver_params.beta * m_n)
-        for i in range(n + 2):
-            d_energy_d_pos[i] -= d_energy_d_theta_n * BendTwist.nabla_i_psi_j(pos, i, n, solver_params)
         return d_energy_d_pos
 
     @staticmethod

@@ -23,4 +23,6 @@ class SolverParams:
     l_bar_edge: np.ndarray
     omega_bar: np.ndarray
 
+    # Simulation parameters
     dt: float
+    xpbd_steps: int

@@ -9,7 +9,8 @@ from solver.solver_params import SolverParams
 
 class Sim:
     @staticmethod
-    def step(rod: Rod, B: np.ndarray, beta: float, k: float, g: float, p_top: np.ndarray, mass: np.ndarray, energies: list[Energy], dt):
+    def step(rod: Rod, B: np.ndarray, beta: float, k: float, g: float, p_top: np.ndarray, mass: np.ndarray,
+             energies: list[Energy], dt, xpbd_steps):
         # Set up the solver
         solver_params = SolverParams(
             B=B,
@@ -18,13 +19,14 @@ class Sim:
             mass=mass,
             g=g,
             n=rod.n,
-            pos0=p_top,
+            pos0=rod.pos0,
             vel=rod.vel,
             bishop_frame=rod.bishop_frame,
             l_bar=rod.l_bar,
             l_bar_edge=rod.l_bar_edge,
             omega_bar=rod.omega_bar,
-            dt=dt
+            dt=dt,
+            xpbd_steps=xpbd_steps
         )
         pos, theta = rod.pos, rod.theta
         pos = CenterlineIntegrator.integrate_centerline(pos, theta, solver_params, energies)
@@ -35,7 +37,8 @@ class Sim:
         return
 
     @staticmethod
-    def init(rod: Rod, B: np.ndarray, beta: float, k: float, g: float, p_top, mass: np.ndarray, energies: list[Energy], dt):
+    def init(rod: Rod, B: np.ndarray, beta: float, k: float, g: float, p_top, mass: np.ndarray, energies: list[Energy],
+             dt, xpbd_steps):
         """ Initialization steps of simulation """
         solver_params = SolverParams(
             B=B,
@@ -44,13 +47,14 @@ class Sim:
             mass=mass,
             g=g,
             n=rod.n,
-            pos0=p_top,
+            pos0=rod.pos0,
             vel=rod.vel,
             bishop_frame=rod.bishop_frame,
             l_bar=rod.l_bar,
             l_bar_edge=rod.l_bar_edge,
             omega_bar=rod.omega_bar,
-            dt=dt
+            dt=dt,
+            xpbd_steps=xpbd_steps
         )
         pos, theta = rod.pos, rod.theta
         rod.theta = QuasistaticSolver.quasistatic_update(pos, theta, solver_params, energies)
