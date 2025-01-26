@@ -40,3 +40,11 @@ class Vector:
             returns the outer product between corresponding vectors (shape nx3x3)
         """
         return np.einsum("ij,ik->ijk", u, v)
+
+    @staticmethod
+    def inner_products(u, v) -> np.ndarray:
+        """
+        Given two arrays of vectors u and v (shape nx3),
+            returns the inner product between corresponding vectors (shape n)
+        """
+        return np.einsum("ij,ij->i", u, v)

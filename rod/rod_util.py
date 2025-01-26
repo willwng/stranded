@@ -28,7 +28,7 @@ class RodUtil:
         e = pos[1:] - pos[:-1]
         e_i, e_im1 = e[1:], e[:-1]
         kb = np.cross(2 * e_im1, e_i)
-        den = (rest_edge_lengths[1:] * rest_edge_lengths[:-1] + np.einsum('ij,ij->i', e_im1, e_i))
+        den = (rest_edge_lengths[1:] * rest_edge_lengths[:-1] + Vector.inner_products(e_im1, e_i))
         kb /= den[:, None]
         return np.concatenate([np.zeros((1, 3)), kb]), den
 
@@ -51,13 +51,13 @@ class RodUtil:
 
         # j = i
         m_1, m_2 = material_frames[:, 0, :], material_frames[:, 1, :]
-        omega_i1 = np.einsum('ij,ij->i', kb, m_2)
-        omega_i2 = -np.einsum('ij,ij->i', kb, m_1)
+        omega_i1 = Vector.inner_products(kb, m_2)
+        omega_i2 = -Vector.inner_products(kb, m_1)
 
         # j = i - 1
         m_1m1, m_2m1 = material_frames[:-1, 0, :], material_frames[:-1, 1, :]
-        omega_im1_1 = np.einsum('ij,ij->i', kb[1:], m_2m1)
-        omega_im1_2 = -np.einsum('ij,ij->i', kb[1:], m_1m1)
+        omega_im1_1 = Vector.inner_products(kb[1:], m_2m1)
+        omega_im1_2 = -Vector.inner_products(kb[1:], m_1m1)
 
         # Stack into shape (n, 2)
         omega_i = np.column_stack([omega_i1, omega_i2])

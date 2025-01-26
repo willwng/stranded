@@ -20,13 +20,14 @@ class Sim:
         edge_lengths = RodUtil.compute_edge_lengths(pos=pos)
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
         kb, kb_den = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=edge_lengths)
-        nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=kb, kb_den=kb_den)
-        nabla_psi = RodUtil.compute_nabla_psi(kb=kb, rest_edge_lengths=edge_lengths)
         bishop_frame = np.zeros((theta.shape[0], 2, 3))
         bishop_frame = RodUtil.update_bishop_frames(pos=pos, theta=theta, bishop_frame=bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
         omega = RodUtil.compute_omega(theta=theta, kb=kb, bishop_frame=bishop_frame)
 
+        # Derivatives
+        nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=kb, kb_den=kb_den)
+        nabla_psi = RodUtil.compute_nabla_psi(kb=kb, rest_edge_lengths=edge_lengths)
         self.init_state = InitialRodState(
             pos0=pos.copy(),
             theta0=theta.copy(),
@@ -155,7 +156,7 @@ class Sim:
             distance = np.linalg.norm(p1_minus_p2, axis=1)
             constraint = distance - self.init_state.l_bar_edge[i]
             # Update lambda and position
-            d_lambda = (-constraint - compliance * lambdas[i]) / (sum_mass + compliance)
+            d_lambda = (-constraint) / (sum_mass + compliance)
             correction_vector = d_lambda[:, None] * p1_minus_p2 / (distance[:, None] + 1e-8)
             lambdas[i] += d_lambda
             pred_pos[i] += inv_mass[:, None] * correction_vector

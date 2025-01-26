@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from energies.bend_twist import BendTwist
 from energies.bend import Bend
@@ -24,16 +25,16 @@ def create_frame(pos, theta, bishop_frame, i):
 
 def main():
     # Create a rod
-    n_points = 10
+    n_points = 15
     pos, theta = RodGenerator.example_rod(n_points)
 
     # Elastic properties
     n_vertices, n_edges = pos.shape[0], theta.shape[0]
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
-        B[i] = np.eye(2) * 10
-    mass = np.ones(n_vertices)
-    beta = 0.1
+        B[i] = np.eye(2) * 20
+    mass = np.ones(n_vertices) * 0.2
+    beta = 0
     k = 0.0
     dt = 0.04
     xpbd_steps = 5
@@ -45,9 +46,8 @@ def main():
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, dt=dt,
               xpbd_steps=xpbd_steps)
 
-    for i in range(1000):
+    for i in tqdm(range(5000)):
         if i % 50 == 0:
-            print(f"iteration {i}")
             create_frame(pos, theta, sim.state.bishop_frame, i)
         pos, theta = sim.step(pos=pos, theta=theta)
 
