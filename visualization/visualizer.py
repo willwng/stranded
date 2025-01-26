@@ -1,21 +1,17 @@
 import numpy as np
 
-from rod.rod import Rod
-
 
 class Visualizer:
     @staticmethod
-    def draw_nodes(rod: Rod, ax):
-        pos = rod.pos
+    def draw_nodes(pos, ax):
         ax.scatter(pos[:, 0], pos[:, 1], pos[:, 2], c='k', marker='o', s=0.1)
         # Pinned node, last node
         ax.scatter(pos[0, 0], pos[0, 1], pos[0, 2], c='b', marker='o', s=10)
         return
 
     @staticmethod
-    def draw_edges(rod: Rod, ax):
-        pos = rod.pos
-        for i in range(rod.n + 1):
+    def draw_edges(pos: np.ndarray, ax):
+        for i in range(pos.shape[0] - 1):
             ax.plot([pos[i, 0], pos[i + 1, 0]],
                     [pos[i, 1], pos[i + 1, 1]],
                     [pos[i, 2], pos[i + 1, 2]],
@@ -23,10 +19,8 @@ class Visualizer:
         return
 
     @staticmethod
-    def draw_bishop_frame(rod: Rod, ax):
-        bishop_frame = rod.bishop_frame
-        pos = rod.pos
-        for i in range(rod.n + 1):
+    def draw_bishop_frame(pos: np.ndarray, bishop_frame: np.ndarray, ax):
+        for i in range(pos.shape[0] - 1):
             e_pos = (pos[i] + pos[i + 1]) / 2
             u = bishop_frame[i, 0]
             v = bishop_frame[i, 1]
@@ -35,12 +29,8 @@ class Visualizer:
         return
 
     @staticmethod
-    def draw_material_frame(rod: Rod, ax):
-        pos = rod.pos
-        theta = rod.theta
-        bishop_frame = rod.bishop_frame
-
-        for i in range(rod.n + 1):
+    def draw_material_frame(pos: np.ndarray, theta: np.ndarray, bishop_frame: np.ndarray, ax):
+        for i in range(pos.shape[0] - 1):
             e_pos = (pos[i] + pos[i + 1]) / 2
             u = bishop_frame[i, 0]
             v = bishop_frame[i, 1]
@@ -51,10 +41,11 @@ class Visualizer:
         return
 
     @staticmethod
-    def set_lims(rod: Rod, ax):
-        ax.set_xlim([-rod.n / 2, rod.n / 2])
-        ax.set_ylim([-rod.n / 2, rod.n / 2])
-        ax.set_zlim([0, rod.n + 1])
+    def set_lims(pos: np.ndarray, ax):
+        max_height = np.max(pos[:, 2])
+        ax.set_xlim([-max_height / 2, max_height / 2])
+        ax.set_ylim([-max_height / 2, max_height / 2])
+        ax.set_zlim([0, max_height + 1])
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_zticks([])

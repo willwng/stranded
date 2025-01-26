@@ -1,5 +1,4 @@
 import numpy as np
-from rod.rod import Rod
 
 
 class RodGenerator:
@@ -21,8 +20,7 @@ class RodGenerator:
         thetas = []
         for i in range(n + 1):
             thetas.append(np.random.rand() * 0.0)
-        rod = Rod(pos=np.array(vertices), thetas=np.array(thetas))
-        return rod
+        return np.array(vertices), np.array(thetas)
 
     @staticmethod
     def straight_rod(n_points: int):
@@ -34,8 +32,7 @@ class RodGenerator:
             vertices.append(pos)
         vertices.reverse()
         thetas = thetas[1:]
-        rod = Rod(pos=np.array(vertices), thetas=np.array(thetas))
-        return rod
+        return np.array(vertices), np.array(thetas)
 
     @staticmethod
     def jittery_rod(n_points: int):
@@ -43,8 +40,8 @@ class RodGenerator:
         thetas = []
         for i in range(n_points + 1):
             pos = np.array([0, 0, i], dtype=np.float64) + np.random.normal(0, 0.1, 3)
-            thetas.append(0.0)
+            thetas.append(np.random.rand())
             vertices.append(pos)
+        vertices.reverse()
         thetas = thetas[1:]
-        rod = Rod(pos=np.array(vertices), thetas=np.array(thetas))
-        return rod
+        return np.array(vertices), np.array(thetas)
