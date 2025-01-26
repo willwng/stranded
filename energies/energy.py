@@ -4,6 +4,7 @@ from rod.rod import RodState, InitialRodState, RodParams
 
 
 class Energy:
+    """ Abstract class for all energies """
     def __init__(self):
         pass
 

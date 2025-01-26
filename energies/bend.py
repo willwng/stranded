@@ -12,7 +12,7 @@ class Bend(Energy):
                        rod_params: RodParams):
         l_bar = init_rod_state.l_bar
         omega_bar = init_rod_state.omega_bar
-        omega = RodUtil.compute_omega(theta=theta, curvature_binormal=rod_state.kb, bishop_frame=rod_state.bishop_frame)
+        omega = RodUtil.compute_omega(theta=theta, kb=rod_state.kb, bishop_frame=rod_state.bishop_frame)
         d_omega = omega - omega_bar
 
         # Compute d_omega @ B @ d_omega across all edges
@@ -29,7 +29,7 @@ class Bend(Energy):
         l_bar = init_rod_state.l_bar
         omega_bar = init_rod_state.omega_bar
 
-        omega = RodUtil.compute_omega(theta=theta, curvature_binormal=rod_state.kb, bishop_frame=rod_state.bishop_frame)
+        omega = RodUtil.compute_omega(theta=theta, kb=rod_state.kb, bishop_frame=rod_state.bishop_frame)
         d_omega = omega - omega_bar
 
         # All edges except the first

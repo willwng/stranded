@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+
 @dataclass
 class RodParams:
     # Bending, twisting, stretching
@@ -16,10 +17,16 @@ class RodParams:
 
 @dataclass
 class RodState:
-    # Computed or updated at every step
     vel: np.ndarray
+    # These can be recovered from pos and theta, but useful to precompute
+    # Updated after every centerline update
     bishop_frame: np.ndarray
     kb: np.ndarray
+    kb_den: np.ndarray  # denominator of kb (to compute nabla (kb)_i)
+    nabla_kb: np.ndarray
+    nabla_psi: np.ndarray
+    # Updated after every quasistatic (theta) update
+    material_frame: np.ndarray
 
 
 @dataclass

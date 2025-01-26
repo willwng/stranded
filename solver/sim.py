@@ -3,13 +3,13 @@ import scipy.optimize as opt
 import scipy.sparse as sp
 
 from energies.energy import Energy
-from math_util.finite_diff import compute_grad_finite_diff
-from rod.rod_util import RodUtil
 from rod.rod import RodState, InitialRodState, RodParams
+from rod.rod_util import RodUtil
 from solver.solver_params import SolverParams
 
 
 class Sim:
+    """ Handles all the simulation logic """
 
     def __init__(self, pos: np.ndarray, theta: np.ndarray, B: np.ndarray, beta: float, k: float, g: float,
                  mass: np.ndarray, energies: list[Energy], dt, xpbd_steps):
@@ -19,10 +19,13 @@ class Sim:
         # Pre-compute the initial state
         edge_lengths = RodUtil.compute_edge_lengths(pos=pos)
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
-        kb = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=edge_lengths)
+        kb, kb_den = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=edge_lengths)
+        nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=kb, kb_den=kb_den)
+        nabla_psi = RodUtil.compute_nabla_psi(kb=kb, rest_edge_lengths=edge_lengths)
         bishop_frame = np.zeros((theta.shape[0], 2, 3))
         bishop_frame = RodUtil.update_bishop_frames(pos=pos, theta=theta, bishop_frame=bishop_frame)
-        omega = RodUtil.compute_omega(theta=theta, curvature_binormal=kb, bishop_frame=bishop_frame)
+        material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
+        omega = RodUtil.compute_omega(theta=theta, kb=kb, bishop_frame=bishop_frame)
 
         self.init_state = InitialRodState(
             pos0=pos.copy(),
@@ -35,31 +38,51 @@ class Sim:
             vel=np.zeros_like(pos),
             bishop_frame=bishop_frame,
             kb=kb,
+            kb_den=kb_den,
+            nabla_kb=nabla_kb,
+            nabla_psi=nabla_psi,
+            material_frame=material_frame,
         )
         self.init(pos=pos, theta=theta)
         return
-
-    def step(self, pos: np.ndarray, theta: np.ndarray):
-        # Pre-compute curvature binormal and material curvature
-        self.state.kb = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=self.init_state.l_bar_edge)
-        self.state.omega = RodUtil.compute_omega(theta=theta, curvature_binormal=self.state.kb,
-                                                 bishop_frame=self.state.bishop_frame)
-        pos = self.integrate_centerline(pos=pos, theta=theta)
-        self.update_bishop_frames(pos=pos, theta=theta)
-        theta = self.quasistatic_update(pos=pos, theta=theta)
-        return pos, theta
 
     def init(self, pos: np.ndarray, theta: np.ndarray):
         """
         Initialization steps of simulation: Update the bishop frames and perform a quasistatic update
         """
         self.update_bishop_frames(pos=pos, theta=theta)
+        self.quasistatic_update(pos=pos, theta=theta)
+        self.update_material_frames(theta=theta)
+        self.update_curvature_binormal(pos=pos)
+        return
+
+    def step(self, pos: np.ndarray, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """ Perform a simulation step """
+        # Pre-compute curvature binormal and material curvature
+        pos = self.integrate_centerline(pos=pos, theta=theta)
+        self.update_curvature_binormal(pos=pos)
+        self.update_bishop_frames(pos=pos, theta=theta)
+
         theta = self.quasistatic_update(pos=pos, theta=theta)
-        return theta
+        self.update_material_frames(theta=theta)
+        return pos, theta
 
     def update_bishop_frames(self, pos: np.ndarray, theta: np.ndarray):
         """ Update the bishop frames of the rod """
         self.state.bishop_frame = RodUtil.update_bishop_frames(pos, theta, self.state.bishop_frame)
+        return
+
+    def update_material_frames(self, theta: np.ndarray):
+        """ Update the material frames of the rod """
+        self.state.material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=self.state.bishop_frame)
+        return
+
+    def update_curvature_binormal(self, pos: np.ndarray):
+        """ Update the curvature binormal of the rod and any dependent values """
+        self.state.kb, self.state.kb_den = RodUtil.compute_curvature_binormal(
+            pos=pos, rest_edge_lengths=self.init_state.l_bar_edge)
+        self.state.nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=self.state.kb, kb_den=self.state.kb_den)
+        self.state.nabla_psi = RodUtil.compute_nabla_psi(kb=self.state.kb, rest_edge_lengths=self.init_state.l_bar_edge)
         return
 
     def quasistatic_update(self, pos: np.ndarray, theta: np.ndarray):
@@ -89,7 +112,7 @@ class Sim:
         relaxed_theta = np.concatenate(([theta_clamped], res.x))
         return relaxed_theta
 
-    def integrate_centerline(self, pos: np.ndarray, theta: np.ndarray):
+    def integrate_centerline(self, pos: np.ndarray, theta: np.ndarray) -> np.ndarray:
         """ Update the position of the rod according to the force with constraint solve """
         solver_params = self.solver_params
         state = self.state

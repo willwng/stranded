@@ -20,37 +20,42 @@ class RodUtil:
         return np.concatenate([np.zeros(1), (edge_lengths[1:] + edge_lengths[:-1]) / 2])
 
     @staticmethod
-    def compute_curvature_binormal(pos: np.ndarray, rest_edge_lengths: np.ndarray) -> np.ndarray:
+    def compute_curvature_binormal(pos: np.ndarray, rest_edge_lengths: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         (kb)_i = (2 * e_{i-1} x e_i) / (|\bar e_{i-1}| |\bar e_i| + e_{i-1} . e_i)
+            also returns the denominator
         """
         e = pos[1:] - pos[:-1]
         e_i, e_im1 = e[1:], e[:-1]
         kb = np.cross(2 * e_im1, e_i)
         den = (rest_edge_lengths[1:] * rest_edge_lengths[:-1] + np.einsum('ij,ij->i', e_im1, e_i))
         kb /= den[:, None]
-        return np.concatenate([np.zeros((1, 3)), kb])
+        return np.concatenate([np.zeros((1, 3)), kb]), den
 
     @staticmethod
-    def compute_omega(theta: np.ndarray, curvature_binormal: np.ndarray, bishop_frame: np.ndarray) -> np.ndarray:
+    def compute_material_frames(theta: np.ndarray, bishop_frame: np.ndarray):
+        """ Computes the material frame for each edge """
+        u, v = bishop_frame[:, 0, :], bishop_frame[:, 1, :]
+        cos_theta, sin_theta = np.cos(theta)[:, None], np.sin(theta)[:, None]
+        m_1 = cos_theta * u + sin_theta * v
+        m_2 = -sin_theta * u + cos_theta * v
+        return np.stack([m_1, m_2], axis=1)
+
+    @staticmethod
+    def compute_omega(theta: np.ndarray, kb: np.ndarray, bishop_frame: np.ndarray) -> np.ndarray:
         """
         Computes omega for all edges where
             omega[i][0] = omega_i^{i-1} and omega[i][1] = omega_i^i
         """
-        kb = curvature_binormal
-        # Compute the material frame
-        u, v = bishop_frame[:, 0, :], bishop_frame[:, 1, :]
-        cos_theta, sin_theta = np.cos(theta)[:, None], np.sin(theta)[:, None]
+        material_frames = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
 
         # j = i
-        m_1 = cos_theta * u + sin_theta * v
-        m_2 = -sin_theta * u + cos_theta * v
+        m_1, m_2 = material_frames[:, 0, :], material_frames[:, 1, :]
         omega_i1 = np.einsum('ij,ij->i', kb, m_2)
         omega_i2 = -np.einsum('ij,ij->i', kb, m_1)
 
         # j = i - 1
-        m_1m1 = cos_theta[:-1] * u[:-1] + sin_theta[:-1] * v[:-1]
-        m_2m1 = -sin_theta[:-1] * u[:-1] + cos_theta[:-1] * v[:-1]
+        m_1m1, m_2m1 = material_frames[:-1, 0, :], material_frames[:-1, 1, :]
         omega_im1_1 = np.einsum('ij,ij->i', kb[1:], m_2m1)
         omega_im1_2 = -np.einsum('ij,ij->i', kb[1:], m_1m1)
 
@@ -104,3 +109,46 @@ class RodUtil:
             # Update the frame
             bishop_frame[i] = np.array([u, v])
         return bishop_frame
+
+    @staticmethod
+    def compute_nabla_kb(pos: np.ndarray, kb: np.ndarray, kb_den: np.ndarray) -> np.ndarray:
+        """
+        For each edge i, computes nabla_{i-1}, nabla_i, nabla_{i+1} of (kb)_i (the other terms are 0)
+        """
+        e = pos[1:] - pos[:-1]
+        e_skew_sym = Vector.skew_sym(e)
+
+        kb_i = kb[1:]  # Undefined for i = 0
+
+        # nabla_{i-1}
+        kb_e_T = Vector.outer_products(kb_i, e[1:])
+        num_im1 = 2 * e_skew_sym[1:] + kb_e_T
+
+        # nabla_{i+1}
+        kb_em1_T = Vector.outer_products(kb[1:], e[:-1])
+        num_ip1 = 2 * e_skew_sym[:-1] - kb_em1_T
+
+        nabla_im1 = num_im1 / kb_den[:, None, None]
+        nabla_ip1 = num_ip1 / kb_den[:, None, None]
+        nabla_i = -(nabla_im1 + nabla_ip1)
+
+        nabla_kb = np.stack([nabla_im1, nabla_i, nabla_ip1], axis=1)
+        # Concat zeros for i=0
+        nabla_kb = np.concatenate([np.zeros((1, 3, 3, 3)), nabla_kb])
+
+        return nabla_kb
+
+    @staticmethod
+    def compute_nabla_psi(kb: np.ndarray, rest_edge_lengths: np.ndarray) -> np.ndarray:
+        """
+        Computes nabla_{i-1} psi_i, nabla_i psi_i, nabla_{i+1} psi_i for each edge i
+        """
+        # Gradients given by Eq. 9
+        nabla_im1 = kb[1:] / (2 * rest_edge_lengths[:-1, None])
+        nabla_ip1 = -kb[1:] / (2 * rest_edge_lengths[1:, None])
+        nabla_i = -(nabla_im1 + nabla_ip1)
+
+        nabla_psi = np.stack([nabla_im1, nabla_i, nabla_ip1], axis=1)
+        # Concat zeros for i=0
+        nabla_psi = np.concatenate([np.zeros((1, 3, 3)), nabla_psi])
+        return nabla_psi
