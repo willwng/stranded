@@ -11,12 +11,10 @@ class Gravity(Energy):
         return energy
 
     @staticmethod
-    def d_energy_d_theta(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_theta = np.zeros_like(theta)
-        return d_energy_d_theta
+    def d_energy_d_theta(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+        return grad  # No theta dependence
 
     @staticmethod
-    def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_pos = np.zeros_like(pos)
-        d_energy_d_pos[:, 2] = np.multiply(solver_params.mass, solver_params.g)
-        return d_energy_d_pos
+    def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+        grad[:, 2] += np.multiply(solver_params.mass, solver_params.g)
+        return grad

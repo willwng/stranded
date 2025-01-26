@@ -9,11 +9,12 @@ class CenterlineIntegrator:
     @staticmethod
     def integrate_centerline(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams,
                              energies: list[Energy]):
-        forces = np.zeros_like(pos)
+        grad = np.zeros_like(pos)
         for energy in energies:
-            forces -= energy.d_energy_d_pos(pos, theta, solver_params)
+            energy.d_energy_d_pos(grad, pos, theta, solver_params)
 
         # Predicted position, with no constraints
+        forces = -grad
         M_inv = np.diag(1 / solver_params.mass)
         pred_pos = pos + solver_params.dt * solver_params.vel + 0.5 * solver_params.dt ** 2 * M_inv @ forces
 

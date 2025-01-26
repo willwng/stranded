@@ -11,9 +11,9 @@ class Energy:
         raise NotImplementedError
 
     @staticmethod
-    def d_energy_d_theta(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+    def d_energy_d_theta(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         raise NotImplementedError
 
     @staticmethod
-    def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+    def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         raise NotImplementedError

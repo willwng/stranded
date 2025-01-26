@@ -23,19 +23,16 @@ class Stretch(Energy):
         return energy
 
     @staticmethod
-    def d_energy_d_theta(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        # Trivial
-        d_energy_d_theta = np.zeros_like(theta)
-        return d_energy_d_theta
+    def d_energy_d_theta(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+        return grad  # No theta dependence
 
     @staticmethod
-    def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_pos = np.zeros_like(pos)
+    def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         # All edges, update gradient of previous and next node
         for i in range(solver_params.n + 1):
             e_i = pos[i + 1] - pos[i]
             l_i = np.linalg.norm(e_i)
             l_bar_i = solver_params.l_bar_edge[i]
-            d_energy_d_pos[i] -= solver_params.k * (l_i - l_bar_i) * e_i / l_i
-            d_energy_d_pos[i + 1] += solver_params.k * (l_i - l_bar_i) * e_i / l_i
-        return d_energy_d_pos
+            grad[i] -= solver_params.k * (l_i - l_bar_i) * e_i / l_i
+            grad[i + 1] += solver_params.k * (l_i - l_bar_i) * e_i / l_i
+        return grad

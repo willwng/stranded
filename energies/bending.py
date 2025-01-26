@@ -20,8 +20,7 @@ class Bend(Energy):
         return energy
 
     @staticmethod
-    def d_energy_d_theta(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_theta = np.zeros_like(theta)
+    def d_energy_d_theta(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         # All edges
         for j in range(0, solver_params.n + 1):
             l_j = solver_params.l_bar[j]
@@ -31,15 +30,15 @@ class Bend(Energy):
             if j != 0:
                 omega_jj = Bend.compute_omega(pos, theta, j, j, solver_params)
                 omega_bar_jj = solver_params.omega_bar[j, 1]
-                d_energy_d_theta[j] = (1 / l_j) * np.dot(omega_jj, Vector.J @ (B_j @ (omega_jj - omega_bar_jj)))
+                grad[j] += (1 / l_j) * np.dot(omega_jj, Vector.J @ (B_j @ (omega_jj - omega_bar_jj)))
 
             # Second term, only if not last edge
             if j != solver_params.n:
                 l_jp1 = solver_params.l_bar[j + 1]
                 omega_jp1j = Bend.compute_omega(pos, theta, j + 1, j, solver_params)
                 omega_bar_jp1j = solver_params.omega_bar[j + 1, 0]
-                d_energy_d_theta[j] += (1 / l_jp1) * np.dot(omega_jp1j, Vector.J @ (B_j @ (omega_jp1j - omega_bar_jp1j)))
-        return d_energy_d_theta
+                grad[j] += (1 / l_jp1) * np.dot(omega_jp1j, Vector.J @ (B_j @ (omega_jp1j - omega_bar_jp1j)))
+        return grad
 
     @staticmethod
     def compute_curvature_binormal(pos: np.ndarray, i: int, solver_params: SolverParams):
@@ -63,6 +62,5 @@ class Bend(Energy):
         return omega_ij
 
     @staticmethod
-    def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_pos = np.zeros_like(pos)
-        return d_energy_d_pos
+    def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+        return grad  # Handled in BendTwist

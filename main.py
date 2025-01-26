@@ -30,8 +30,8 @@ def main():
     n_vertices, n_edges = rod.n + 2, rod.n + 1
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
-        B[i] = np.eye(2) * 0.1
-    mass = np.ones(n_vertices) / n_vertices
+        B[i] = np.eye(2) * 1
+    mass = np.ones(n_vertices) * 0.1
     beta = 0.1
     k = 0.0
     dt = 0.04
@@ -42,7 +42,7 @@ def main():
     # rod.pos *= 1.2
     create_frame(rod, 0)
 
-    energies = [Bend(), Twist(), BendTwist(), Gravity()]
+    energies = [Gravity(), Bend(), Twist(), BendTwist()]
     sim = Sim(rod, B, beta, k, g, mass, energies, dt, xpbd_steps)
     for i in range(1000):
         if i % 50 == 0:

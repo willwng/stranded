@@ -16,16 +16,13 @@ class BendTwist(Energy):
         return energy
 
     @staticmethod
-    def d_energy_d_theta(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
-        d_energy_d_theta = np.zeros_like(theta)
-        return d_energy_d_theta
+    def d_energy_d_theta(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+        return grad  # Handled in Bend and Twist separately
 
     @staticmethod
-    def d_energy_d_pos(pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
+    def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, solver_params: SolverParams):
         n = solver_params.n
-
-        # Compute partial E / partial x_i, for all nodes
-        d_energy_d_pos = np.zeros_like(pos)
+        # Compute partial E / partial x_i, for all nodes (noting for our situation partial E / partial theta_i = 0)
         for i in range(n + 2):
             # k from 1 to n
             for k in range(1, n + 1):
@@ -48,9 +45,8 @@ class BendTwist(Energy):
                     # nabla_i psi_j
                     nabla_i_psi_j = BendTwist.nabla_i_psi_j(pos, i, j, solver_params)
                     nabla_i_omega_kj = m_T @ nabla_i_kb_k - Vector.J @ np.outer(omega_kj, nabla_i_psi_j)
-                    grad = den * nabla_i_omega_kj.T @ (B_j @ d_omega_kj)
-                    d_energy_d_pos[i] += grad
-        return d_energy_d_pos
+                    grad[i] += den * nabla_i_omega_kj.T @ (B_j @ d_omega_kj)
+        return grad
 
     @staticmethod
     def nabla_kb(pos: np.ndarray, i: int, d: int, solver_params: SolverParams):
