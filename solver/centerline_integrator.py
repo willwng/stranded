@@ -27,17 +27,19 @@ class CenterlineIntegrator:
     @staticmethod
     def xpbd(pos, solver_params):
         """ Extended Position Based Dynamics (XPBD) for solving constraints """
-        lambdas = np.zeros(pos.shape[0]) # Lagrange multipliers
+        # Prepare for constraint solve: inverse mass and Lagrange multipliers
+        i = np.arange(solver_params.n + 1)
+        inv_mass = 1 / solver_params.mass[i]
+        inv_mass2 = 1 / solver_params.mass[i + 1]
+        sum_mass = inv_mass + inv_mass2
+        lambdas = np.zeros(solver_params.n + 1, dtype=np.float64)
         compliance = 1e-12 / (solver_params.dt ** 2)
+
         for _ in range(solver_params.xpbd_steps):
             # Fixed node constraint (just clamp the top node)
             pos[0] = solver_params.pos0[0]
 
             # Inextensibility constraint for each edge
-            i = np.arange(solver_params.n + 1)
-            inv_mass = 1 / solver_params.mass[i]
-            inv_mass2 = 1 / solver_params.mass[i + 1]
-            sum_mass = inv_mass + inv_mass2
             # Constraint is difference between length and rest length
             p1_minus_p2 = pos[i] - pos[i + 1]
             distance = np.linalg.norm(p1_minus_p2, axis=1)
