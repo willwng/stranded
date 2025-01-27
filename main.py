@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import time
 import numpy as np
 from tqdm import tqdm
 
@@ -24,7 +25,7 @@ def create_frame(pos, theta, bishop_frame, i):
     plt.close()
 
     # Visualizer.to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
-    Visualizer.strand_to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
+    # Visualizer.strand_to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
     return
 
 
@@ -38,10 +39,10 @@ def main():
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
         B[i] = np.eye(2) * 20
-    mass = np.ones(n_vertices) * 10
+    mass = np.ones(n_vertices) * 0.2
     beta = 1.0
     k = 0.0
-    dt = 0.04
+    dt = 0.01
     xpbd_steps = 5
     g = 9.81
 
@@ -51,11 +52,13 @@ def main():
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, dt=dt,
               xpbd_steps=xpbd_steps)
 
+    start = time.time()
     save_freq = 10
     for i in tqdm(range(3000)):
         if i % save_freq == 0:
             create_frame(pos, theta, sim.state.bishop_frame, i // save_freq)
         pos, theta = sim.step(pos=pos, theta=theta)
+    print(f"Time: {time.time() - start:.2f}s")
 
     plt.show()
     return
