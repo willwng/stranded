@@ -14,7 +14,7 @@ class RodGenerator:
             vertices.append(pos)
 
         # Reverse so that the last node is at the top
-        # vertices.reverse()
+        vertices.reverse()
 
         # n + 1 edges
         thetas = []
