@@ -19,13 +19,18 @@ def create_frame(pos, theta, bishop_frame, i):
     # if bishop_frame is not None:
     #     Visualizer.draw_material_frame(pos=pos, theta=theta, bishop_frame=bishop_frame, ax=ax)
     Visualizer.set_lims(pos=pos, ax=ax)
-    plt.savefig(f"frames/frame_{i}.png")
+    plt.title(f"t={i * 0.04:.2f}")
+    plt.savefig(f"output/frames/frame_{i}.png")
     plt.close()
+
+    # Visualizer.to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
+    Visualizer.strand_to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
+    return
 
 
 def main():
     # Create a rod
-    n_points = 15
+    n_points = 10
     pos, theta = RodGenerator.example_rod(n_points)
 
     # Elastic properties
@@ -33,8 +38,8 @@ def main():
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
         B[i] = np.eye(2) * 20
-    mass = np.ones(n_vertices) * 0.2
-    beta = 0
+    mass = np.ones(n_vertices) * 10
+    beta = 1.0
     k = 0.0
     dt = 0.04
     xpbd_steps = 5
@@ -46,9 +51,10 @@ def main():
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, dt=dt,
               xpbd_steps=xpbd_steps)
 
-    for i in tqdm(range(5000)):
-        if i % 50 == 0:
-            create_frame(pos, theta, sim.state.bishop_frame, i)
+    save_freq = 10
+    for i in tqdm(range(3000)):
+        if i % save_freq == 0:
+            create_frame(pos, theta, sim.state.bishop_frame, i // save_freq)
         pos, theta = sim.step(pos=pos, theta=theta)
 
     plt.show()
