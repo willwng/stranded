@@ -21,7 +21,7 @@ class Sim:
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
         kb, kb_den = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=edge_lengths)
         bishop_frame = np.zeros((theta.shape[0], 2, 3))
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, theta=theta, bishop_frame=bishop_frame)
+        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
         omega = RodUtil.compute_omega(theta=theta, kb=kb, bishop_frame=bishop_frame)
 
@@ -51,7 +51,7 @@ class Sim:
         """
         Initialization steps of simulation: Update the bishop frames and perform a quasistatic update
         """
-        self.update_bishop_frames(pos=pos, theta=theta)
+        self.update_bishop_frames(pos=pos)
         self.quasistatic_update(pos=pos, theta=theta)
         self.update_material_frames(theta=theta)
         self.update_curvature_binormal(pos=pos)
@@ -62,15 +62,15 @@ class Sim:
         # Pre-compute curvature binormal and material curvature
         pos = self.integrate_centerline(pos=pos, theta=theta)
         self.update_curvature_binormal(pos=pos)
-        self.update_bishop_frames(pos=pos, theta=theta)
+        self.update_bishop_frames(pos=pos)
 
         theta = self.quasistatic_update(pos=pos, theta=theta)
         self.update_material_frames(theta=theta)
         return pos, theta
 
-    def update_bishop_frames(self, pos: np.ndarray, theta: np.ndarray):
+    def update_bishop_frames(self, pos: np.ndarray):
         """ Update the bishop frames of the rod """
-        self.state.bishop_frame = RodUtil.update_bishop_frames(pos, theta, self.state.bishop_frame)
+        self.state.bishop_frame = RodUtil.update_bishop_frames(pos, self.state.bishop_frame)
         return
 
     def update_material_frames(self, theta: np.ndarray):
@@ -131,6 +131,9 @@ class Sim:
 
         # Use XPBD to solve for the new position considering the constraints
         solved_pos = self.xpbd(pred_pos)
+
+        # Disabled velocity (seems unstable)
+        # state.vel = (solved_pos - pos) / solver_params.dt
         return solved_pos
 
     def xpbd(self, pred_pos):

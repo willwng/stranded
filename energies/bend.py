@@ -48,6 +48,11 @@ class Bend(Energy):
         return grad
 
     @staticmethod
+    def d2_energy_d_theta2(hess: np.ndarray, pos: np.ndarray, theta: np.ndarray, rod_state: RodState,
+                           init_rod_state: InitialRodState, rod_params: RodParams):
+        raise NotImplementedError
+
+    @staticmethod
     def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, rod_state: RodState,
                        init_rod_state: InitialRodState, rod_params: RodParams):
         return grad  # Handled in BendTwist
