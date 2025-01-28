@@ -27,22 +27,28 @@ class BendTwist(Energy):
     def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, rod_state: RodState,
                        init_rod_state: InitialRodState, rod_params: RodParams):
         n = theta.shape[0] - 1
+        # Compute all omega and omega-omega_bar
         omega = RodUtil.compute_omega(theta=theta, kb=rod_state.kb, bishop_frame=rod_state.bishop_frame)
+        d_omega = omega - init_rod_state.omega_bar
+        # Denominator is 1/\bar{l_i}
+        den = np.concatenate([np.zeros(1), 1 / init_rod_state.l_bar[1:]])
+
+        # Precompute all B @ d_omega. B_d_omega[i, 0] = B_{i-1} @ d_omega_{i-1}, B_d_omega[i, 1] = B_i @ d_omega_i
+        B_d_omega = np.zeros((n, 2, 2))
+        B_d_omega[:, 0] = Vector.matrix_multiply(rod_params.B[:-1], d_omega[1:, 0])
+        B_d_omega[:, 1] = Vector.matrix_multiply(rod_params.B[1:], d_omega[1:, 1])
+        B_d_omega = np.concatenate([np.zeros((1, 2, 2)), B_d_omega])
+
+        # Precompute all J @ omega
+        J_omega = Vector.single_matrix_multiply(Vector.J, omega)
+
         # Compute partial E / partial x_i, for all nodes (noting for our situation partial E / partial theta_i = 0)
         for i in range(n + 2):
             # k from 1 to n, but nabla_i_kb_k is only nonzero for k = i-1, i, i+1
             k_ind_nz = np.arange(max(1, i - 1), min(n + 1, i + 2))
-            # Furthermore nabla_i_psi_j will be zero when j < i-2
-            k_ind_zero = np.setdiff1d(np.arange(i + 2, n + 1), k_ind_nz)
             for k in k_ind_nz:
-                den = 1 / init_rod_state.l_bar[k]
                 # j from k-1 to k
                 for j_idx, j in enumerate([k - 1, k]):
-                    B_j = rod_params.B[j]
-                    omega_kj = omega[k, j_idx]
-                    omega_bar_kj = init_rod_state.omega_bar[k, j_idx]
-                    d_omega_kj = omega_kj - omega_bar_kj
-
                     # Compute nabla_i omega_kj. Requires m_1j, m_2j
                     m_1j, m_2j = rod_state.material_frame[j]
                     m_T = np.array([m_2j, -m_1j])
@@ -51,29 +57,25 @@ class BendTwist(Energy):
                     nabla_i_kb_k = rod_state.nabla_kb[k, i - k + 1]
 
                     # nabla_i psi_j
-                    nabla_i_psi_j = BendTwist.nabla_i_psi_j(i, j, rod_state)
-                    nabla_i_omega_kj = m_T @ nabla_i_kb_k - Vector.J @ np.outer(omega_kj, nabla_i_psi_j)
-                    grad[i] += den * nabla_i_omega_kj.T @ (B_j @ d_omega_kj)
+                    m = np.arange(max(1, i - 1), min(j + 1, i + 2))
+                    nabla_i_psi_j = np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
+                    nabla_i_omega_kj = m_T @ nabla_i_kb_k - np.outer(J_omega[k, j_idx], nabla_i_psi_j)
+                    grad[i] += den[k] * nabla_i_omega_kj.T @ (B_d_omega[k, j_idx])
 
-            # Now for the zero terms
-            for k in k_ind_zero:
-                den = 1 / init_rod_state.l_bar[k]
-                # j from k-1 to k
-                for j_idx, j in enumerate([k - 1, k]):
-                    B_j = rod_params.B[j]
-                    omega_kj = omega[k, j_idx]
-                    omega_bar_kj = init_rod_state.omega_bar[k, j_idx]
-                    d_omega_kj = omega_kj - omega_bar_kj
-                    # nabla_i psi_j
-                    nabla_i_psi_j = BendTwist.nabla_i_psi_j(i, j, rod_state)
-                    nabla_i_omega_kj = -Vector.J @ np.outer(omega_kj, nabla_i_psi_j)
-                    grad[i] += den * nabla_i_omega_kj.T @ (B_j @ d_omega_kj)
+            # Terms where nabla_i_kb_k is zero. Also, note nabla_i_psi_j will be zero when j < i-2
+            k_ind_zero = np.setdiff1d(np.arange(i + 2, n + 1), k_ind_nz)
+            # Since we know j >= i+1, we can move this expression out here
+            m = np.arange(max(1, i - 1), min(i + 2, n + 1))
+            nabla_i_psi_j = np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
+
+            # Compute J_omega @ nabla_i_psi_j.T
+            J_omega_nabla_i_psi_j = Vector.outer_product_helper(J_omega, nabla_i_psi_j)
+            # Compute (J_omega @ nabla_i_psi_j).T @ B_d_omega
+            J_omega_nabla_B_d_omega = np.einsum('nijk,nij->nik', J_omega_nabla_i_psi_j, B_d_omega)
+            # Compute den[k] * -J_omega_nabla_B_d_omega
+            grads_nz = -den[k_ind_zero, None, None] * J_omega_nabla_B_d_omega[k_ind_zero]
+            # Update gradient
+            grads_nz = np.sum(grads_nz, axis=(0, 1))
+            grad[i] += grads_nz
 
         return grad
-
-    @staticmethod
-    def nabla_i_psi_j(i: int, j: int, rod_state: RodState):
-        """ Computes the gradient of Psi_j wrst i """
-        # From m = 1 to j. Note: only nabla_{i-1}, nabla_i, nabla_{i+1} are non-zero
-        m = np.arange(max(1, i - 1), min(j + 1, i + 2))
-        return np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
