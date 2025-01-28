@@ -48,3 +48,34 @@ class Vector:
             returns the inner product between corresponding vectors (shape n)
         """
         return np.einsum("ij,ij->i", u, v)
+
+    @staticmethod
+    def matrix_multiply(M, v) -> np.ndarray:
+        """
+        Given an array of matrices M (shape n x i x j)
+            and an array of vectors v (shape n x j),
+            returns the corresponding matrix-vector products (shape n x i)
+        """
+        return np.einsum("nij,nj->ni", M, v)
+
+    @staticmethod
+    def single_matrix_multiply(M, v) -> np.ndarray:
+        """
+        Given a matrix M (shape i x j)
+            and an array of vectors v (shape n x l x j),
+            returns the corresponding matrix-vector products (shape n x l x i)
+        such that
+        res[i, 0] = M @ v[i, 0] and res[i, 1] = M @ v[i, 1]
+        """
+        return np.einsum("ij,klj->kli", M, v)
+
+    @staticmethod
+    def outer_product_helper(M, v) -> np.ndarray:
+        """
+        Given an array of matrices M (shape n x i x j)
+            and vectors v (shape k),
+            returns the corresponding outer product such that
+        res[i, 0] = np.outer(M[i, 0], v[i])
+        res[i, 1] = np.outer(M[i, 1], v[i])
+        """
+        return np.einsum("nij,k->nijk", M, v)
