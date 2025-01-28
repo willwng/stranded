@@ -1,6 +1,6 @@
 # Stranded
 A minimally dependent codebase for the simulation 
-and generation of single hair strands (based on discrete elastic rods)
+and generation of single hair strands (based on [discrete elastic rods](https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf))
 
 - Visualizer for displaying strands
 <img src="https://github.com/user-attachments/assets/b7ef05b3-ed7e-4fd1-88b4-89085812bbd1" width="250">
