@@ -147,9 +147,6 @@ class Sim:
         compliance = 1e-12 / (solver_params.dt ** 2)
 
         for _ in range(solver_params.xpbd_steps):
-            # Fixed node constraint (just clamp the top node)
-            pred_pos[0] = self.init_state.pos0[0]
-
             # Inextensibility constraint for each edge
             # Constraint is difference between length and rest length
             p1_minus_p2 = pred_pos[i] - pred_pos[i + 1]
@@ -161,5 +158,8 @@ class Sim:
             lambdas[i] += d_lambda
             pred_pos[i] += inv_mass[:, None] * correction_vector
             pred_pos[i + 1] -= inv_mass2[:, None] * correction_vector
+
+            # Fixed node constraint (just clamp the top node)
+            pred_pos[0] = self.init_state.pos0[0]
 
         return pred_pos.reshape(-1, 3)
