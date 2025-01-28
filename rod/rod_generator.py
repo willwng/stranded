@@ -8,18 +8,23 @@ class RodGenerator:
     def example_rod(n: int):
         # n + 2 vertices
         vertices = []
-        d = 0.75
+        d = 1.75
         for i in range(n + 2):
             pos = np.array([np.cos(d * i), np.sin(d * i), i], dtype=np.float64)
             vertices.append(pos)
 
         # Reverse so that the last node is at the top
         vertices.reverse()
+        vertices = np.stack(vertices)
+
+        # Translate so that pos[0] x and y are 0
+        vertices[:, 0] -= vertices[0, 0]
+        vertices[:, 1] -= vertices[0, 1]
 
         # n + 1 edges
         thetas = []
         for i in range(n + 1):
-            thetas.append(np.random.rand() * 0.0)
+            thetas.append(0.0)
         return np.array(vertices), np.array(thetas)
 
     @staticmethod
