@@ -25,7 +25,7 @@ def create_frame(pos, theta, bishop_frame, i):
     plt.close()
 
     # Visualizer.to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
-    # Visualizer.strand_to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj")
+    Visualizer.strand_to_obj(pos=pos, output_file=f"output/obj/obj_{i}.obj", point_radius=0.2, line_radius=0.2)
     return
 
 
@@ -39,12 +39,12 @@ def main():
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
         B[i] = np.eye(2) * 20
-    mass = np.ones(n_vertices) * 0.2
+    mass = np.ones(n_vertices) * 0.05
     beta = 1.0
     k = 0.0
-    dt = 0.01
+    dt = 0.02
     xpbd_steps = 5
-    g = 9.81
+    g = 0
 
     create_frame(pos, theta, None, 0)
 
@@ -53,8 +53,16 @@ def main():
               xpbd_steps=xpbd_steps)
 
     start = time.time()
-    save_freq = 10
-    for i in tqdm(range(3000)):
+
+    # Straighten test (keeping edge lengths constant)
+    edge_lengths = np.linalg.norm(pos[1:] - pos[:-1], axis=1)
+    for i in range(1, n_points + 2):
+        pos[i] = np.array([0, 0, pos[0, 2] - np.sum(edge_lengths[:i])], dtype=np.float64)
+
+    create_frame(pos, theta, sim.state.bishop_frame, 1)
+
+    save_freq = 100
+    for i in tqdm(range(10000)):
         if i % save_freq == 0:
             create_frame(pos, theta, sim.state.bishop_frame, i // save_freq)
         pos, theta = sim.step(pos=pos, theta=theta)
