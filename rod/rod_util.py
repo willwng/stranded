@@ -71,7 +71,7 @@ class RodUtil:
         return omegas
 
     @staticmethod
-    def update_bishop_frames(pos: np.ndarray, theta: np.ndarray, bishop_frame: np.ndarray) -> np.ndarray:
+    def update_bishop_frames(pos: np.ndarray, bishop_frame: np.ndarray) -> np.ndarray:
         """
         Computes the Bishop frame for each edge in the rod
         """
@@ -86,7 +86,7 @@ class RodUtil:
         bishop_frame[0] = np.array([u, v])
 
         # Parallel transport the frame along the strand
-        n = theta.shape[0]
+        n = bishop_frame.shape[0]
         for i in range(1, n):
             # Get edge and the previous edge
             t_i, t_im1 = (pos[i + 1] - pos[i]), (pos[i] - pos[i - 1])

@@ -2,14 +2,11 @@
 Hacky, only used for gradient calculation wrst position
 """
 import numpy as np
-from numba import njit
 
-from energies.bend import Bend
 from energies.energy import Energy
 from math_util.vectors import Vector
 from rod.rod import RodState, InitialRodState, RodParams
 from rod.rod_util import RodUtil
-from solver.solver_params import SolverParams
 
 
 class BendTwist(Energy):
@@ -42,6 +39,10 @@ class BendTwist(Energy):
         # Precompute all J @ omega
         J_omega = Vector.single_matrix_multiply(Vector.J, omega)
 
+        # Create m_T matrix
+        m_1, m_2 = rod_state.material_frame[:, 0], rod_state.material_frame[:, 1]
+        m_T = np.stack([m_2, -m_1], axis=-2)
+
         # Compute partial E / partial x_i, for all nodes (noting for our situation partial E / partial theta_i = 0)
         for i in range(n + 2):
             # k from 1 to n, but nabla_i_kb_k is only nonzero for k = i-1, i, i+1
@@ -49,17 +50,12 @@ class BendTwist(Energy):
             for k in k_ind_nz:
                 # j from k-1 to k
                 for j_idx, j in enumerate([k - 1, k]):
-                    # Compute nabla_i omega_kj. Requires m_1j, m_2j
-                    m_1j, m_2j = rod_state.material_frame[j]
-                    m_T = np.array([m_2j, -m_1j])
-
-                    # Now compute nabla_i (kb)_k
                     nabla_i_kb_k = rod_state.nabla_kb[k, i - k + 1]
 
                     # nabla_i psi_j
                     m = np.arange(max(1, i - 1), min(j + 1, i + 2))
                     nabla_i_psi_j = np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
-                    nabla_i_omega_kj = m_T @ nabla_i_kb_k - np.outer(J_omega[k, j_idx], nabla_i_psi_j)
+                    nabla_i_omega_kj = m_T[j] @ nabla_i_kb_k - np.outer(J_omega[k, j_idx], nabla_i_psi_j)
                     grad[i] += den[k] * nabla_i_omega_kj.T @ (B_d_omega[k, j_idx])
 
             # Terms where nabla_i_kb_k is zero. Also, note nabla_i_psi_j will be zero when j < i-2
