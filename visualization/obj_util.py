@@ -3,6 +3,7 @@ import numpy as np
 
 class ObjUtil:
     """ Tools for creating 3d meshes in the Wavefront OBJ format """
+
     @staticmethod
     def create_sphere(center, radius, segments=8):
         """Create a sphere mesh centered at the given point"""
@@ -59,6 +60,57 @@ class ObjUtil:
                 angle = 2 * np.pi * j / segments
                 normal = right * np.cos(angle) + up * np.sin(angle)
                 point = (start if i == 0 else end) + normal * radius
+                vertices.append(point)
+
+        # Generate faces
+        for i in range(segments):
+            i1 = i
+            i2 = (i + 1) % segments
+            i3 = i + segments
+            i4 = ((i + 1) % segments) + segments
+
+            # Side faces
+            faces.append([i1, i2, i4])
+            faces.append([i1, i4, i3])
+
+        return vertices, faces
+
+    @staticmethod
+    def create_elliptical_cylinder(start: np.ndarray, end: np.ndarray, a_dir: np.ndarray,
+                                   a: float, b: float, segments: int):
+        """
+        Create an elliptical cylinder mesh between two points with major axis pointed in a_dir
+            and length a and minor axis length b
+        """
+        vertices = []
+        faces = []
+
+        # Calculate cylinder direction and length
+        cyl_dir = end - start
+        cyl_dir = cyl_dir / np.linalg.norm(cyl_dir)
+
+        # Project major_axis_dir onto plane perpendicular to cylinder axis
+        a_dir = a_dir - np.dot(a_dir, cyl_dir) * cyl_dir
+
+        # Check if major_axis_dir is not zero after projection
+        major_norm = np.linalg.norm(a_dir)
+        if major_norm < 1e-6:
+            raise ValueError("Major axis direction cannot be parallel to cylinder axis")
+
+        a_dir = a_dir / major_norm
+
+        # Create minor axis direction perpendicular to both cylinder axis and major axis
+        minor_axis_dir = np.cross(cyl_dir, a_dir)
+        minor_axis_dir = minor_axis_dir / np.linalg.norm(minor_axis_dir)
+
+        # Generate vertices
+        for i in range(2):  # Two ends of cylinder
+            for j in range(segments):
+                angle = 2 * np.pi * j / segments
+                # Create elliptical profile using parametric equation
+                normal = (a_dir * (a * np.cos(angle)) +
+                          minor_axis_dir * (b * np.sin(angle)))
+                point = (start if i == 0 else end) + normal
                 vertices.append(point)
 
         # Generate faces

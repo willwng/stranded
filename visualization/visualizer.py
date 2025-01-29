@@ -74,12 +74,19 @@ class Visualizer:
         return
 
     @staticmethod
-    def strand_to_obj(pos: np.ndarray, output_file: str, point_radius: float = 0.1, line_radius: float = 0.05,
-                      y_up: bool = True):
+    def strand_to_obj(pos: np.ndarray,
+                      material_frame: np.ndarray,
+                      output_file: str,
+                      point_radius: float,
+                      major_radius: float,
+                      minor_radius: float,
+                      y_up: bool = True
+                      ):
         """ OBJ output with spheres for points and cylinders for lines """
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
             pos = pos[:, [0, 2, 1]]
+            material_frame = material_frame[:, :, [0, 2, 1]]
 
         with open(output_file, 'w') as f:
             f.write("# Point cloud with 3D points and lines\n")
@@ -100,12 +107,14 @@ class Visualizer:
 
                 vertex_offset += len(sphere_vertices)
 
-            # Create cylinders for lines
-            for i in range(len(pos) - 1):
-                start = pos[i]
-                end = pos[i + 1]
+            # Create cylinders for each edge
+            for i in range(pos.shape[0] - 1):
+                start, end = pos[i], pos[i + 1]
 
-                cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
+                # cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
+                a_dir = material_frame[i, 0]
+                cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
+                    start=start, end=end, a_dir=a_dir, a=major_radius, b=minor_radius, segments=16)
 
                 # Write cylinder vertices
                 for v in cyl_vertices:

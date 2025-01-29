@@ -44,17 +44,6 @@ class Sim:
             nabla_psi=nabla_psi,
             material_frame=material_frame,
         )
-        self.init(pos=pos, theta=theta)
-        return
-
-    def init(self, pos: np.ndarray, theta: np.ndarray):
-        """
-        Initialization steps of simulation: Update the bishop frames and perform a quasistatic update
-        """
-        self.update_bishop_frames(pos=pos)
-        self.quasistatic_update(pos=pos, theta=theta)
-        self.update_material_frames(theta=theta)
-        self.update_curvature_binormal(pos=pos)
         return
 
     def step(self, pos: np.ndarray, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
