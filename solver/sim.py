@@ -12,10 +12,10 @@ class Sim:
     """ Handles all the simulation logic """
 
     def __init__(self, pos: np.ndarray, theta: np.ndarray, B: np.ndarray, beta: float, k: float, g: float,
-                 mass: np.ndarray, energies: list[Energy], dt, xpbd_steps):
+                 mass: np.ndarray, energies: list[Energy], damping: float, dt: float, xpbd_steps: int):
         self.energies = energies
         self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
-        self.solver_params = SolverParams(dt=dt, xpbd_steps=xpbd_steps)
+        self.solver_params = SolverParams(damping=damping, dt=dt, xpbd_steps=xpbd_steps)
         # Pre-compute the initial state
         edge_lengths = RodUtil.compute_edge_lengths(pos=pos)
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
@@ -126,6 +126,8 @@ class Sim:
 
         # Predicted position, with no constraints
         forces = -grad
+        forces -= solver_params.damping * state.vel # Damping
+
         M_inv = sp.diags(1 / self.rod_params.mass)
         pred_pos = pos + solver_params.dt * state.vel + 0.5 * solver_params.dt ** 2 * M_inv @ forces
 
@@ -133,7 +135,7 @@ class Sim:
         solved_pos = self.xpbd(pred_pos)
 
         # Disabled velocity (seems unstable)
-        # state.vel = (solved_pos - pos) / solver_params.dt
+        state.vel = (solved_pos - pos) / solver_params.dt
         return solved_pos
 
     def xpbd(self, pred_pos):
@@ -145,6 +147,7 @@ class Sim:
         i = np.arange(n_edges)
         inv_mass = 1 / self.rod_params.mass[i]
         inv_mass2 = 1 / self.rod_params.mass[i + 1]
+        inv_mass[0] = 0.0  # Fixed node
         sum_mass = inv_mass + inv_mass2
         lambdas = np.zeros(n_edges, dtype=np.float64)
         compliance = 1e-12 / (solver_params.dt ** 2)
@@ -156,7 +159,7 @@ class Sim:
             distance = np.linalg.norm(p1_minus_p2, axis=1)
             constraint = distance - self.init_state.l_bar_edge[i]
             # Update lambda and position
-            d_lambda = (-constraint) / (sum_mass + compliance)
+            d_lambda = (-constraint - compliance * lambdas) / (sum_mass + compliance)
             correction_vector = d_lambda[:, None] * p1_minus_p2 / (distance[:, None] + 1e-8)
             lambdas[i] += d_lambda
             pred_pos[i] += inv_mass[:, None] * correction_vector
