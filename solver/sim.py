@@ -1,11 +1,12 @@
 import numpy as np
 import scipy.optimize as opt
 import scipy.sparse as sp
+import time
 
 from energies.energy import Energy
 from rod.rod import RodState, InitialRodState, RodParams
 from rod.rod_util import RodUtil
-from solver.solver_params import SolverParams
+from solver.solver_params import SolverParams, init_solver_analytics
 
 
 class Sim:
@@ -13,9 +14,6 @@ class Sim:
 
     def __init__(self, pos: np.ndarray, theta: np.ndarray, B: np.ndarray, beta: float, k: float, g: float,
                  mass: np.ndarray, energies: list[Energy], damping: float, dt: float, xpbd_steps: int):
-        self.energies = energies
-        self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
-        self.solver_params = SolverParams(damping=damping, dt=dt, xpbd_steps=xpbd_steps)
         # Pre-compute the initial state
         edge_lengths = RodUtil.compute_edge_lengths(pos=pos)
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
@@ -24,7 +22,6 @@ class Sim:
         bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
         omega = RodUtil.compute_omega(theta=theta, kb=kb, bishop_frame=bishop_frame)
-
         # Derivatives
         nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=kb, kb_den=kb_den)
         nabla_psi = RodUtil.compute_nabla_psi(kb=kb, rest_edge_lengths=edge_lengths)
@@ -44,18 +41,51 @@ class Sim:
             nabla_psi=nabla_psi,
             material_frame=material_frame,
         )
+        self.energies = energies
+        self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
+        self.solver_params = SolverParams(damping=damping, dt=dt, xpbd_steps=xpbd_steps)
+
+        # Analytics
+        self.analytics = init_solver_analytics()
         return
 
     def step(self, pos: np.ndarray, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """ Perform a simulation step """
-        # Pre-compute curvature binormal and material curvature
+        start_step_time = time.time()
+
+        # Integrate centerline, update anything that depends on position
         pos = self.integrate_centerline(pos=pos, theta=theta)
         self.update_curvature_binormal(pos=pos)
         self.update_bishop_frames(pos=pos)
 
+        # Quasistatic update, updating anything that depends on theta
+        start_quasistatic_time = time.time()
         theta = self.quasistatic_update(pos=pos, theta=theta)
         self.update_material_frames(theta=theta)
+
+        # Update analytics
+        end_time = time.time()
+        self.analytics.integration_time = start_quasistatic_time - start_step_time
+        self.analytics.quasistatic_time = end_time - start_quasistatic_time
+        self.analytics.time_taken = end_time - start_step_time
+        self.update_analytics(pos=pos, theta=theta)
         return pos, theta
+
+    def update_analytics(self, pos: np.ndarray, theta: np.ndarray):
+        """ Update the analytics """
+        kinetic_energy = 0.5 * np.sum(self.rod_params.mass * np.linalg.norm(self.state.vel, axis=1) ** 2)
+        potential_energy = sum([e.compute_energy(pos=pos, theta=theta, rod_state=self.state,
+                                                 init_rod_state=self.init_state, rod_params=self.rod_params)
+                                for e in self.energies])
+        grad = np.zeros_like(pos)
+        for energy in self.energies:
+            energy.d_energy_d_pos(grad=grad, pos=pos, theta=theta, rod_state=self.state, init_rod_state=self.init_state,
+                                  rod_params=self.rod_params)
+        self.analytics.kinetic_energy = kinetic_energy
+        self.analytics.potential_energy = potential_energy
+        self.analytics.total_energy = kinetic_energy + potential_energy
+        self.analytics.mag_force = np.linalg.norm(grad)
+        return
 
     def update_bishop_frames(self, pos: np.ndarray):
         """ Update the bishop frames of the rod """
@@ -115,13 +145,15 @@ class Sim:
 
         # Predicted position, with no constraints
         forces = -grad
-        forces -= solver_params.damping * state.vel # Damping
+        forces -= solver_params.damping * state.vel  # Damping
 
         M_inv = sp.diags(1 / self.rod_params.mass)
         pred_pos = pos + solver_params.dt * state.vel + 0.5 * solver_params.dt ** 2 * M_inv @ forces
 
         # Use XPBD to solve for the new position considering the constraints
+        start_xpbd_time = time.time()
         solved_pos = self.xpbd(pred_pos)
+        self.analytics.xpbd_time = time.time() - start_xpbd_time
 
         # Disabled velocity (seems unstable)
         state.vel = (solved_pos - pos) / solver_params.dt

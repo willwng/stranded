@@ -78,8 +78,8 @@ class Visualizer:
                       material_frame: np.ndarray,
                       output_file: str,
                       point_radius: float,
-                      major_radius: float,
-                      minor_radius: float,
+                      axis_1_radius: float,
+                      axis_2_radius: float,
                       y_up: bool = True
                       ):
         """ OBJ output with spheres for points and cylinders for lines """
@@ -114,7 +114,7 @@ class Visualizer:
                 # cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
                 a_dir = material_frame[i, 0]
                 cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
-                    start=start, end=end, a_dir=a_dir, a=major_radius, b=minor_radius, segments=16)
+                    start=start, end=end, a_dir=a_dir, a=axis_1_radius, b=axis_2_radius, segments=16)
 
                 # Write cylinder vertices
                 for v in cyl_vertices:
