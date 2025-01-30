@@ -79,8 +79,8 @@ class ObjUtil:
     def create_elliptical_cylinder(start: np.ndarray, end: np.ndarray, a_dir: np.ndarray,
                                    a: float, b: float, segments: int):
         """
-        Create an elliptical cylinder mesh between two points with major axis pointed in a_dir
-            and length a and minor axis length b
+        Create an elliptical cylinder mesh between two points with one axis pointed in a_dir
+            with length a and the other axis length b
         """
         vertices = []
         faces = []
