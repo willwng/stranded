@@ -44,14 +44,15 @@ class BendTwist(Energy):
         m_T = np.stack([m_2, -m_1], axis=-2)
 
         # Compute partial E / partial x_i, for all nodes (noting for our situation partial E / partial theta_i = 0)
+        j_ind = np.stack([np.arange(0, n), np.arange(1, n + 1)], axis=-1)
         for i in range(n + 2):
             # k from 1 to n, but nabla_i_kb_k is only nonzero for k = i-1, i, i+1
             k_ind_nz = np.arange(max(1, i - 1), min(n + 1, i + 2))
             for k in k_ind_nz:
+                nabla_i_kb_k = rod_state.nabla_kb[k, i - k + 1]
+                j_ind_nz = j_ind[k - 1]
                 # j from k-1 to k
-                for j_idx, j in enumerate([k - 1, k]):
-                    nabla_i_kb_k = rod_state.nabla_kb[k, i - k + 1]
-
+                for j_idx, j in enumerate(j_ind_nz):
                     # nabla_i psi_j
                     m = np.arange(max(1, i - 1), min(j + 1, i + 2))
                     nabla_i_psi_j = np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
