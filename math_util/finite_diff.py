@@ -1,4 +1,4 @@
-import numpy as np
+import jax.numpy as np
 
 
 def compute_grad_finite_diff(f, x0: np.ndarray, eps: float = 1e-6):

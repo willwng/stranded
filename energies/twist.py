@@ -1,7 +1,7 @@
 from energies.energy import Energy
 from rod.rod import RodState, InitialRodState, RodParams
 
-import numpy as np
+import jax.numpy as np
 
 
 class Twist(Energy):

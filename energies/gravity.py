@@ -21,5 +21,5 @@ class Gravity(Energy):
     def d_energy_d_pos(grad: np.ndarray, pos: np.ndarray, theta: np.ndarray, rod_state: RodState,
                        init_rod_state: InitialRodState,
                        rod_params: RodParams):
-        grad[:, 2] += np.multiply(rod_params.mass, rod_params.g)
+        grad = grad.at[:, 2].add(np.multiply(rod_params.mass, rod_params.g))
         return grad

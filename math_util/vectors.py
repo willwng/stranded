@@ -1,4 +1,4 @@
-import numpy as np
+import jax.numpy as np
 
 
 class Vector:
@@ -24,12 +24,12 @@ class Vector:
             v = v.reshape(1, 3)
         skew_matrices = np.zeros((v.shape[0], 3, 3))  # (n x 3 x 3)
 
-        skew_matrices[:, 0, 1] = -v[:, 2]
-        skew_matrices[:, 0, 2] = v[:, 1]
-        skew_matrices[:, 1, 0] = v[:, 2]
-        skew_matrices[:, 1, 2] = -v[:, 0]
-        skew_matrices[:, 2, 0] = -v[:, 1]
-        skew_matrices[:, 2, 1] = v[:, 0]
+        skew_matrices = skew_matrices.at[:, 0, 1].set(-v[:, 2])
+        skew_matrices = skew_matrices.at[:, 0, 2].set(v[:, 1])
+        skew_matrices = skew_matrices.at[:, 1, 0].set(v[:, 2])
+        skew_matrices = skew_matrices.at[:, 1, 2].set(-v[:, 0])
+        skew_matrices = skew_matrices.at[:, 2, 0].set(-v[:, 1])
+        skew_matrices = skew_matrices.at[:, 2, 1].set(v[:, 0])
 
         return skew_matrices.squeeze()
 

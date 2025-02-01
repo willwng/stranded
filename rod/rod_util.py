@@ -1,4 +1,5 @@
 import numpy as np
+from jax import jit
 
 from math_util.quaternion import Quaternion
 from math_util.vectors import Vector
@@ -83,7 +84,8 @@ class RodUtil:
         u = Vector.compute_orthogonal_vec(t0)
         v = np.cross(t0, u)
         u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
-        bishop_frame[0] = np.array([u, v])
+        bishop_frame = bishop_frame.at[0, 0].set(u)
+        bishop_frame = bishop_frame.at[0, 1].set(v)
 
         # Parallel transport the frame along the strand
         n = bishop_frame.shape[0]
@@ -107,7 +109,8 @@ class RodUtil:
             u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
 
             # Update the frame
-            bishop_frame[i] = np.array([u, v])
+            bishop_frame = bishop_frame.at[i, 0].set(u)
+            bishop_frame = bishop_frame.at[i, 1].set(v)
         return bishop_frame
 
     @staticmethod

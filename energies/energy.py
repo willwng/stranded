@@ -1,4 +1,4 @@
-import numpy as np
+import jax.numpy as np
 
 from rod.rod import RodState, InitialRodState, RodParams
 

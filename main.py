@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import time
-import numpy as np
 from tqdm import tqdm
 
 from energies.bend_twist import BendTwist
@@ -11,6 +10,8 @@ from rod.rod_generator import RodGenerator
 from solver.sim import Sim
 from solver.solver_params import update_csv_analytics
 from visualization.visualizer import Visualizer
+
+import jax.numpy as np
 
 
 def create_frame(pos: np.ndarray, theta: np.ndarray, material_frame: np.ndarray, i: int):
@@ -41,8 +42,8 @@ def main():
     # For each edge, the bending stiffness matrix
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
-        B[i, 0, 0] = 4.0
-        B[i, 1, 1] = 1.0
+        B = B.at[i, 0, 0].set(4.0)
+        B = B.at[i, 1, 1].set(1.0)
 
     # Twisting stiffness
     beta = 0.1
@@ -74,7 +75,7 @@ def main():
     # Straighten the rod (keeping edge lengths constant)
     edge_lengths = np.linalg.norm(pos[1:] - pos[:-1], axis=1)
     for i in range(1, n_points + 2):
-        pos[i] = np.array([0, 0, pos[0, 2] - np.sum(edge_lengths[:i])], dtype=np.float64)
+        pos.at[i].set(np.array([0, 0, pos[0, 2] - np.sum(edge_lengths[:i])], dtype=np.float64))
 
     create_frame(pos, theta, sim.state.material_frame, 1)
 

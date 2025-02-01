@@ -1,9 +1,8 @@
-import numpy as np
+import jax.numpy as np
 
 from energies.energy import Energy
 from rod.rod import RodState, InitialRodState, RodParams
 from rod.rod_util import RodUtil
-from solver.solver_params import SolverParams
 
 
 class Stretch(Energy):

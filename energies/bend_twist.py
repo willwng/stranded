@@ -2,6 +2,7 @@
 Hacky, only used for gradient calculation wrst position
 """
 import numpy as np
+from jax import jit
 
 from energies.energy import Energy
 from math_util.vectors import Vector
@@ -56,7 +57,7 @@ class BendTwist(Energy):
                     m = np.arange(max(1, i - 1), min(j + 1, i + 2))
                     nabla_i_psi_j = np.sum(rod_state.nabla_psi[m, i - m + 1], axis=0)
                     nabla_i_omega_kj = m_T[j] @ nabla_i_kb_k - np.outer(J_omega[k, j_idx], nabla_i_psi_j)
-                    grad[i] += den[k] * nabla_i_omega_kj.T @ (B_d_omega[k, j_idx])
+                    grad = grad.at[i].add(den[k] * nabla_i_omega_kj.T @ (B_d_omega[k, j_idx]))
 
             # Terms where nabla_i_kb_k is zero. Also, note nabla_i_psi_j will be zero when j < i-2
             k_ind_zero = np.setdiff1d(np.arange(i + 2, n + 1), k_ind_nz)
@@ -72,6 +73,6 @@ class BendTwist(Energy):
             grads_nz = -den[k_ind_zero, None, None] * J_omega_nabla_B_d_omega[k_ind_zero]
             # Update gradient
             grads_nz = np.sum(grads_nz, axis=(0, 1))
-            grad[i] += grads_nz
+            grad = grad.at[i].add(grads_nz)
 
         return grad
