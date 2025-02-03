@@ -40,6 +40,8 @@ class Sim:
             nabla_kb=nabla_kb,
             nabla_psi=nabla_psi,
             material_frame=material_frame,
+            frozen_pos_indices=np.array([0]),
+            frozen_theta_indices=np.array([0]),
         )
         self.energies = energies
         self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
@@ -108,28 +110,38 @@ class Sim:
     def quasistatic_update(self, pos: np.ndarray, theta: np.ndarray):
         """ Minimizes the energy with respect to theta (except theta of the first edge) """
         # Clamp/fix theta for the first edge
-        theta_clamped = theta[0]
+        fixed_theta_indices = self.state.frozen_theta_indices
+        free_theta_indices = np.setdiff1d(np.arange(theta.size), fixed_theta_indices)
+        theta_fixed = theta[fixed_theta_indices]
+        n_edges = theta.size
 
         def total_energy(t: np.ndarray):
             energy_tot = 0.0
-            full_theta = np.concatenate(([theta_clamped], t))
+            # Combine theta_fixed with the free thetas, in the correct order
+            full_theta = np.zeros(n_edges)
+            full_theta[fixed_theta_indices] = theta_fixed
+            full_theta[free_theta_indices] = t
             for energy in self.energies:
                 energy_tot += energy.compute_energy(pos=pos, theta=full_theta, rod_state=self.state,
                                                     init_rod_state=self.init_state, rod_params=self.rod_params)
             return energy_tot
 
         def total_grad_energy(t: np.ndarray):
-            grad = np.zeros(t.size + 1)
-            full_theta = np.concatenate(([theta_clamped], t))
+            grad = np.zeros(n_edges)
+            full_theta = np.zeros(n_edges)
+            full_theta[fixed_theta_indices] = theta_fixed
+            full_theta[free_theta_indices] = t
             for energy in self.energies:
                 energy.d_energy_d_theta(grad=grad, pos=pos, theta=full_theta, rod_state=self.state,
                                         init_rod_state=self.init_state, rod_params=self.rod_params)
-            return grad[1:]
+            return grad[free_theta_indices]
 
         # Minimize total energy wrst the free theta values
-        theta_free = theta[1:]
+        theta_free = theta[free_theta_indices]
         res = opt.minimize(total_energy, theta_free, jac=total_grad_energy, method='L-BFGS-B')
-        relaxed_theta = np.concatenate(([theta_clamped], res.x))
+        relaxed_theta = np.zeros(theta.size)
+        relaxed_theta[fixed_theta_indices] = theta_fixed
+        relaxed_theta[free_theta_indices] = res.x
         return relaxed_theta
 
     def integrate_centerline(self, pos: np.ndarray, theta: np.ndarray) -> np.ndarray:
@@ -162,13 +174,14 @@ class Sim:
     def xpbd(self, pred_pos):
         """ Extended Position Based Dynamics (XPBD) for solving constraints """
         solver_params = self.solver_params
-        n_edges = pred_pos.shape[0] - 1
+        frozen_indices = self.state.frozen_pos_indices
 
         # Prepare for constraint solve: inverse mass and Lagrange multipliers
+        n_edges = pred_pos.shape[0] - 1
         i = np.arange(n_edges)
         inv_mass = 1 / self.rod_params.mass[i]
         inv_mass2 = 1 / self.rod_params.mass[i + 1]
-        inv_mass[0] = 0.0  # Fixed node
+        inv_mass[frozen_indices] = 0.0  # Fixed node
         sum_mass = inv_mass + inv_mass2
         lambdas = np.zeros(n_edges, dtype=np.float64)
         compliance = 1e-12 / (solver_params.dt ** 2)
@@ -187,6 +200,11 @@ class Sim:
             pred_pos[i + 1] -= inv_mass2[:, None] * correction_vector
 
             # Fixed node constraint (just clamp the top node)
-            pred_pos[0] = self.init_state.pos0[0]
+            pred_pos[frozen_indices] = self.init_state.pos0[frozen_indices]
 
         return pred_pos.reshape(-1, 3)
+
+    def freeze(self, index: int):
+        """ Freeze a node at a given index """
+        self.rod_params.mass[index] = 0.0
+        return
