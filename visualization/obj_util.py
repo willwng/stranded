@@ -88,15 +88,7 @@ class ObjUtil:
         # Calculate cylinder direction and length
         cyl_dir = end - start
         cyl_dir = cyl_dir / np.linalg.norm(cyl_dir)
-
-        # Project major_axis_dir onto plane perpendicular to cylinder axis
-        a_dir = a_dir - np.dot(a_dir, cyl_dir) * cyl_dir
-
-        # Check if major_axis_dir is not zero after projection
         major_norm = np.linalg.norm(a_dir)
-        if major_norm < 1e-6:
-            raise ValueError("Major axis direction cannot be parallel to cylinder axis")
-
         a_dir = a_dir / major_norm
 
         # Create minor axis direction perpendicular to both cylinder axis and major axis
