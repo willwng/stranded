@@ -18,15 +18,16 @@ def create_frame(pos: np.ndarray,
                  point_radii: np.ndarray,
                  ax1_radii: np.ndarray,
                  ax2_radii: np.ndarray,
+                 point_style: list[str],
                  i: int):
     Visualizer.strand_to_obj(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                             ax2_radii=ax2_radii, output_file=f"output/obj/obj_{i}.obj")
+                             ax2_radii=ax2_radii, point_style=point_style, output_file=f"output/obj/obj_{i}.obj")
     return
 
 
 def main():
     # Create a rod
-    n_points = 30
+    n_points = 50
     pos, theta = RodGenerator.example_rod(n_points)
 
     # Define properties of the rod
@@ -38,14 +39,16 @@ def main():
     # For each edge, the bending stiffness matrix
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
-        B[i, 0, 0] = 8.0
+        B[i, 0, 0] = 1.0
         B[i, 1, 1] = 1.0
 
     # Visualization parameters
-    obj_scale = 0.1
-    point_radii = np.cbrt(mass) * obj_scale
-    ax1_radii = np.sqrt(B[:, 0, 0]) * point_radii[1:]
-    ax2_radii = np.sqrt(B[:, 1, 1]) * point_radii[1:]
+    point_scale = 0.1
+    edge_scale = 0.05
+    point_radii = np.cbrt(mass) * point_scale
+    ax1_radii = np.sqrt(B[:, 0, 0]) * edge_scale
+    ax2_radii = np.sqrt(B[:, 1, 1]) * edge_scale
+    point_style = ["cube"] + ["sphere"] * (n_vertices - 1)
 
     # Twisting stiffness
     beta = 0.1
@@ -67,7 +70,7 @@ def main():
 
     material_frame = sim.state.material_frame
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, i=0)
+                 ax2_radii=ax2_radii, point_style=point_style, i=0)
     sim.update_analytics(pos, theta)
     update_csv_analytics(sim.analytics, f"output/analytics.csv")
 
@@ -79,7 +82,7 @@ def main():
     #     pos[i] = np.array([0, 0, pos[0, 2] - np.sum(edge_lengths[:i])], dtype=np.float64)
 
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, i=1)
+                 ax2_radii=ax2_radii, point_style=point_style, i=1)
 
     # Run the simulation
     save_freq = 10
@@ -87,7 +90,7 @@ def main():
     for i in progress:
         if i % save_freq == 0:
             create_frame(pos=pos, material_frame=sim.state.material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                         ax2_radii=ax2_radii, i=i // save_freq)
+                         ax2_radii=ax2_radii, point_style=point_style, i=i // save_freq)
             progress.set_description(f"Frame {i // save_freq}")
             update_csv_analytics(sim.analytics, f"output/analytics.csv")
         pos, theta = sim.step(pos=pos, theta=theta)

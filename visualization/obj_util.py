@@ -33,6 +33,62 @@ class ObjUtil:
         return vertices, faces
 
     @staticmethod
+    def create_cube(center, size, segments=1):
+        """ Create a cube mesh centered at the given point """
+        vertices = []
+        faces = []
+
+        # Half-length of the cube
+        h = size / 2
+
+        # Generate vertices for each segment
+        for face in range(6):  # 6 faces of the cube
+            # Determine the primary axis for this face
+            axis = face // 2  # 0=x, 1=y, 2=z
+            sign = -1 if face % 2 == 0 else 1
+
+            # Generate grid of vertices for this face
+            for i in range(segments + 1):
+                for j in range(segments + 1):
+                    # Convert grid coordinates to [-h, h] range
+                    u = -h + (2 * h * i / segments)
+                    v = -h + (2 * h * j / segments)
+
+                    # Create vertex based on face orientation
+                    vertex = [0, 0, 0]
+                    vertex[axis] = sign * h  # Primary axis
+                    vertex[(axis + 1) % 3] = u  # Secondary axis
+                    vertex[(axis + 2) % 3] = v  # Tertiary axis
+
+                    # Offset by center position
+                    vertex = [vertex[i] + center[i] for i in range(3)]
+                    vertices.append(vertex)
+
+        # Generate faces (triangles)
+        verts_per_face = (segments + 1) * (segments + 1)
+        for face in range(6):
+            face_offset = face * verts_per_face
+
+            # Generate grid of triangles
+            for i in range(segments):
+                for j in range(segments):
+                    # Get vertex indices for this grid cell
+                    v1 = face_offset + i * (segments + 1) + j
+                    v2 = v1 + 1
+                    v3 = v1 + (segments + 1)
+                    v4 = v3 + 1
+
+                    # Create two triangles for this grid cell
+                    if face % 2 == 0:
+                        faces.append([v1, v2, v3])
+                        faces.append([v2, v4, v3])
+                    else:
+                        faces.append([v1, v3, v2])
+                        faces.append([v2, v3, v4])
+
+        return vertices, faces
+
+    @staticmethod
     def create_cylinder(start, end, radius, segments=8):
         """Create a cylinder mesh between two points"""
         vertices = []
