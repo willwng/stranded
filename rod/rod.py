@@ -28,6 +28,10 @@ class RodState:
     # Updated after every quasistatic (theta) update
     material_frame: np.ndarray
 
+    # For shape-matching, freezing indices of these nodes/edges
+    frozen_pos_indices: np.ndarray
+    frozen_theta_indices: np.ndarray
+
 
 @dataclass
 class InitialRodState:
