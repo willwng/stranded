@@ -179,10 +179,10 @@ class Sim:
         # Prepare for constraint solve: inverse mass and Lagrange multipliers
         n_edges = pred_pos.shape[0] - 1
         i = np.arange(n_edges)
-        inv_mass = 1 / self.rod_params.mass[i]
-        inv_mass2 = 1 / self.rod_params.mass[i + 1]
-        inv_mass[frozen_indices] = 0.0  # Fixed node
-        sum_mass = inv_mass + inv_mass2
+        inv_mass = 1 / self.rod_params.mass
+        # Fixed nodes
+        inv_mass[frozen_indices] = 0.0
+        sum_mass = inv_mass[i] + inv_mass[i + 1]
         lambdas = np.zeros(n_edges, dtype=np.float64)
         compliance = 1e-12 / (solver_params.dt ** 2)
 
@@ -196,8 +196,8 @@ class Sim:
             d_lambda = (-constraint - compliance * lambdas) / (sum_mass + compliance)
             correction_vector = d_lambda[:, None] * p1_minus_p2 / (distance[:, None] + 1e-8)
             lambdas[i] += d_lambda
-            pred_pos[i] += inv_mass[:, None] * correction_vector
-            pred_pos[i + 1] -= inv_mass2[:, None] * correction_vector
+            pred_pos[i] += inv_mass[i, None] * correction_vector
+            pred_pos[i + 1] -= inv_mass[i + 1, None] * correction_vector
 
             # Fixed node constraint (just clamp the top node)
             pred_pos[frozen_indices] = self.init_state.pos0[frozen_indices]
