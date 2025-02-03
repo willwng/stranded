@@ -79,6 +79,7 @@ class Visualizer:
                       point_radii: np.ndarray,
                       ax1_radii: np.ndarray,
                       ax2_radii: np.ndarray,
+                      point_style: list[str],
                       output_file: str,
                       y_up: bool = True):
         """ OBJ output with spheres for points and cylinders for lines """
@@ -94,17 +95,22 @@ class Visualizer:
 
             # Create spheres for points
             for i, point in enumerate(pos):
-                sphere_vertices, sphere_faces = ObjUtil.create_sphere(point, point_radii[i])
+                if point_style[i] == "sphere":
+                    vertices, faces = ObjUtil.create_sphere(point, point_radii[i])
+                elif point_style[i] == "cube":
+                    vertices, faces = ObjUtil.create_cube(center=point, size=point_radii[i])
+                else:
+                    raise ValueError(f"Unknown point style: {point_style[i]}")
 
                 # Write sphere vertices
-                for v in sphere_vertices:
+                for v in vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
 
                 # Write sphere faces
-                for face in sphere_faces:
+                for face in faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
-                vertex_offset += len(sphere_vertices)
+                vertex_offset += len(vertices)
 
             # Create cylinders for each edge
             for i in range(pos.shape[0] - 1):

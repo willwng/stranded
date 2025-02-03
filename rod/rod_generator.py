@@ -8,9 +8,13 @@ class RodGenerator:
     def example_rod(n: int):
         # n + 2 vertices
         vertices = []
-        d = 1.
+        curl_radius = 1.0
+        curl_frequency = 1.0
+        height_scale = 0.2
         for i in range(n + 2):
-            pos = np.array([np.cos(d * i), np.sin(d * i), 0.2*i], dtype=np.float64)
+            pos = np.array(
+                [curl_radius * np.cos(curl_frequency * i), curl_radius * np.sin(curl_frequency * i), height_scale * i],
+                dtype=np.float64)
             vertices.append(pos)
 
         # Reverse so that the last node is at the top
