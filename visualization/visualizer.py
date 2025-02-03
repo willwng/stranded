@@ -76,12 +76,11 @@ class Visualizer:
     @staticmethod
     def strand_to_obj(pos: np.ndarray,
                       material_frame: np.ndarray,
+                      point_radii: np.ndarray,
+                      ax1_radii: np.ndarray,
+                      ax2_radii: np.ndarray,
                       output_file: str,
-                      point_radius: float,
-                      axis_1_radius: float,
-                      axis_2_radius: float,
-                      y_up: bool = True
-                      ):
+                      y_up: bool = True):
         """ OBJ output with spheres for points and cylinders for lines """
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
@@ -94,8 +93,8 @@ class Visualizer:
             vertex_offset = 1  # OBJ uses 1-based indexing
 
             # Create spheres for points
-            for point in pos:
-                sphere_vertices, sphere_faces = ObjUtil.create_sphere(point, point_radius)
+            for i, point in enumerate(pos):
+                sphere_vertices, sphere_faces = ObjUtil.create_sphere(point, point_radii[i])
 
                 # Write sphere vertices
                 for v in sphere_vertices:
@@ -114,7 +113,7 @@ class Visualizer:
                 # cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
                 a_dir = material_frame[i, 0]
                 cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
-                    start=start, end=end, a_dir=a_dir, a=axis_1_radius, b=axis_2_radius, segments=16)
+                    start=start, end=end, a_dir=a_dir, a=ax1_radii[i], b=ax2_radii[i], segments=16)
 
                 # Write cylinder vertices
                 for v in cyl_vertices:
