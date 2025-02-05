@@ -7,6 +7,7 @@ from energies.bend_twist import BendTwist
 from energies.bend import Bend
 from energies.gravity import Gravity
 from energies.twist import Twist
+from matching.shape_match import ShapeMatch
 from rod.reduced import Reduced
 from rod.rod_generator import RodGenerator
 from solver.sim import Sim
@@ -31,7 +32,7 @@ def create_frame(pos: np.ndarray,
 def main():
     # Create a rod
     # pos, theta = RodGenerator.straight_rod(n_points = 10)
-    import_pos, import_theta = RodGenerator.from_obj(file_path="../../blender/sarah_1.obj", scale=10)
+    import_pos, import_theta = RodGenerator.from_obj(file_path="sarah_1.obj", scale=10)
     # import_pos, import_theta = RodGenerator.example_rod(n=20)
 
     # Straighten the rod (keeping edge lengths constant)
@@ -106,51 +107,20 @@ def main():
                  forces=np.zeros_like(target_pos), ax1_radii=ax1_radii, ax2_radii=ax2_radii, point_style=point_style,
                  i=2)
 
-    def project_out_force(f: np.ndarray, p: np.ndarray) -> np.ndarray:
-        # Zero out force of first node (fixed)
-        f[0] = 0.0
-        # Project out the force in direction of the edges (inextensibility)
-        e = p[1:] - p[:-1]
-        e /= np.linalg.norm(e, axis=1)[:, None]
-        f[1:] -= np.sum(f[1:] * e, axis=1)[:, None] * e
-        return f
-
-    # Solve the minimization in reduced coordinates
-    r, polar = Reduced.to_polar_coordinates(target_pos)
-    def obj(p: np.ndarray, t: np.ndarray):
-        pos_rest_k = Reduced.to_cartesian_coordinates(r, p.reshape(-1, 2), target_pos[0])
-        sim.define_rest_state(pos=pos_rest_k, theta=t)
-        f = sim.compute_force(pos_test=target_pos, theta_test=target_theta)
-        # Zero out force of first node
-        f[0] = 0.0
-        # Project out the force in direction of the edges
-        e = target_pos[1:] - target_pos[:-1]
-        e /= np.linalg.norm(e, axis=1)[:, None]
-        f[1:] -= np.sum(f[1:] * e, axis=1)[:, None] * e
-        return np.linalg.norm(f)
-
     counter = 3
+
     def callback(xk):
         nonlocal counter
-        print(f"Force: {obj(xk, target_theta)}, Counter: {counter}")
-        pos_rest_k = Reduced.to_cartesian_coordinates(r, xk.reshape(-1, 2), target_pos[0])
-        sim.define_rest_state(pos=pos_rest_k, theta=target_theta)
-        forces = sim.compute_force(pos_test=target_pos, theta_test=target_theta)
-        forces = project_out_force(forces, target_pos)
-        create_frame(pos=pos_rest_k, material_frame=sim.state.material_frame, point_radii=point_radii,
-                     forces=forces, ax1_radii=ax1_radii, ax2_radii=ax2_radii, point_style=point_style, i=counter)
+        print(f"Counter: {counter}")
+        sim.define_rest_state(pos=xk, theta=target_theta)
+        f = sim.compute_force(pos_test=target_pos, theta_test=target_theta)
+        create_frame(pos=xk, material_frame=sim.state.material_frame, point_radii=point_radii, forces=f,
+                     ax1_radii=ax1_radii, ax2_radii=ax2_radii, point_style=point_style, i=counter)
         counter += 1
         return
 
-    from scipy.optimize import minimize
-    res = minimize(obj, x0=polar.ravel(), method='bfgs', tol=1e-8, args=(target_theta,), options={'disp': True},
-                   callback=callback)
-    polar_optimized = res.x
-    pos_optimized = Reduced.to_cartesian_coordinates(r, polar_optimized.reshape(-1, 2), target_pos[0])
-
-    # Draw the forces at the optimized rest state
-    force = obj(polar_optimized, target_theta)
-    print(f"Force magnitude: {force}")
+    pos_optimized = ShapeMatch.optimize_positions(target_pos=target_pos, target_theta=target_theta, sim=sim,
+                                                  callback=callback)
 
     print(f"Time: {time.time() - start:.2f}s")
     # Run the simulation
