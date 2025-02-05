@@ -5,7 +5,7 @@ class ObjUtil:
     """ Tools for creating 3d meshes in the Wavefront OBJ format """
 
     @staticmethod
-    def create_sphere(center, radius, segments=8):
+    def create_sphere(center, radius, segments=16):
         """Create a sphere mesh centered at the given point"""
         vertices = []
         faces = []
@@ -89,7 +89,7 @@ class ObjUtil:
         return vertices, faces
 
     @staticmethod
-    def create_cylinder(start, end, radius, segments=8):
+    def create_cylinder(start, end, radius, segments=16):
         """Create a cylinder mesh between two points"""
         vertices = []
         faces = []
@@ -173,3 +173,93 @@ class ObjUtil:
             faces.append([i1, i4, i3])
 
         return vertices, faces
+
+    @staticmethod
+    def create_cone(base_center, tip, radius, segments=16):
+        """ Create a cone mesh from base center to tip. """
+        base_center = np.array(base_center)
+        tip = np.array(tip)
+
+        # Calculate cone axis and height
+        axis = tip - base_center
+        height = np.linalg.norm(axis)
+        if height < 1e-6:
+            raise ValueError("Cone height must be non-zero")
+
+        # Normalize axis
+        axis = axis / height
+
+        # Find perpendicular vectors to create circle
+        if abs(axis[0]) < abs(axis[1]):
+            perpendicular = np.array([1., 0., 0.])
+        else:
+            perpendicular = np.array([0., 1., 0.])
+
+        # Create orthonormal basis
+        u = np.cross(axis, perpendicular)
+        u = u / np.linalg.norm(u)
+        v = np.cross(axis, u)
+
+        # Generate vertices
+        vertices = [tip.tolist()]  # First vertex is the tip
+
+        # Create base vertices
+        for i in range(segments):
+            angle = 2 * np.pi * i / segments
+            circle_point = (u * np.cos(angle) + v * np.sin(angle)) * radius
+            vertex = base_center + circle_point
+            vertices.append(vertex.tolist())
+
+        # Create faces
+        faces = []
+
+        # Side faces
+        for i in range(segments):
+            v1 = 0  # Tip vertex
+            v2 = i + 1
+            v3 = ((i + 1) % segments) + 1
+            faces.append([v1, v2, v3])
+
+        # Base face (triangulate the base)
+        base_center_idx = len(vertices)
+        vertices.append(base_center.tolist())
+
+        for i in range(segments):
+            v1 = base_center_idx
+            v2 = i + 1
+            v3 = ((i + 1) % segments) + 1
+            faces.append([v1, v3, v2])  # Note: reversed order for correct normal
+
+        return vertices, faces
+
+    @staticmethod
+    def create_arrow(start_point, direction, length=1.0, radius=0.1):
+        """ Create an arrow mesh consisting of a cylinder and cone. """
+        # Normalize direction vector
+        direction = np.array(direction)
+        direction = direction / np.linalg.norm(direction)
+
+        # Create shaft (cylinder)
+        shaft_length = length * 0.8  # Shaft takes 80% of total length
+        cylinder_vertices, cylinder_faces = ObjUtil.create_cylinder(
+            start_point,
+            start_point + direction * shaft_length,
+            radius
+        )
+
+        # Create arrowhead (cone)
+        cone_height = length * 0.2  # Cone takes 20% of total length
+        cone_radius = radius * 2  # Cone is wider than shaft
+        cone_start = start_point + direction * shaft_length
+        cone_vertices, cone_faces = ObjUtil.create_cone(
+            cone_start,
+            cone_start + direction * cone_height,
+            cone_radius
+        )
+
+        # Combine vertices and update face indices for cone
+        all_vertices = cylinder_vertices + cone_vertices
+        cone_faces = [[f + len(cylinder_vertices) for f in face] for face in cone_faces]
+        all_faces = cylinder_faces + cone_faces
+
+        return all_vertices, all_faces

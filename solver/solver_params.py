@@ -2,6 +2,8 @@ import csv
 import os
 from dataclasses import dataclass
 
+import numpy as np
+
 
 @dataclass
 class SolverParams:
@@ -23,6 +25,7 @@ class SolverAnalytics:
     total_energy: float
     kinetic_energy: float
     potential_energy: float
+    force: np.ndarray
     mag_force: float
 
 
@@ -35,6 +38,7 @@ def init_solver_analytics():
         total_energy=0.0,
         kinetic_energy=0.0,
         potential_energy=0.0,
+        force=np.zeros(0),
         mag_force=0.0,
     )
 

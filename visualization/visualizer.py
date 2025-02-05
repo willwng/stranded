@@ -54,7 +54,9 @@ class Visualizer:
         return
 
     @staticmethod
-    def to_simple_obj(pos: np.ndarray, output_file: str):
+    def to_simple_obj(pos: np.ndarray, output_file: str, y_up: bool = True):
+        if y_up:
+            pos = pos[:, [0, 2, 1]]
         """ OBJ output with just points and edges """
         with open(output_file, 'w') as f:
             # Write header
@@ -77,6 +79,7 @@ class Visualizer:
     def strand_to_obj(pos: np.ndarray,
                       material_frame: np.ndarray,
                       point_radii: np.ndarray,
+                      forces: np.ndarray,
                       ax1_radii: np.ndarray,
                       ax2_radii: np.ndarray,
                       point_style: list[str],
@@ -86,47 +89,61 @@ class Visualizer:
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
             pos = pos[:, [0, 2, 1]]
+            forces = forces[:, [0, 2, 1]]
             material_frame = material_frame[:, :, [0, 2, 1]]
 
         with open(output_file, 'w') as f:
             f.write("# Point cloud with 3D points and lines\n")
 
-            vertex_offset = 1  # OBJ uses 1-based indexing
+            vertex_offset = 1
 
-            # Create spheres for points
+            # --- Begin draw points ---
             for i, point in enumerate(pos):
+                # -- Draw sphere/cube for each point --
                 if point_style[i] == "sphere":
                     vertices, faces = ObjUtil.create_sphere(point, point_radii[i])
                 elif point_style[i] == "cube":
                     vertices, faces = ObjUtil.create_cube(center=point, size=point_radii[i])
                 else:
                     raise ValueError(f"Unknown point style: {point_style[i]}")
-
-                # Write sphere vertices
+                # Write vertices and faces
                 for v in vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-
-                # Write sphere faces
                 for face in faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
                 vertex_offset += len(vertices)
 
-            # Create cylinders for each edge
+                # -- Draw force arrow for each point --
+                force = forces[i]
+                force_magnitude = np.linalg.norm(force)
+                if force_magnitude > 1e-12:
+                    arrow_vertices, arrow_faces = ObjUtil.create_arrow(
+                        point,
+                        force / force_magnitude,
+                        length=1,
+                        radius=point_radii[i] * min(np.sqrt(force_magnitude), 1.0),
+                    )
+                    for v in arrow_vertices:
+                        f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+                    for face in arrow_faces:
+                        f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
+
+                    vertex_offset += len(arrow_vertices)
+                pass
+
+            # --- Begin draw edges ---
             for i in range(pos.shape[0] - 1):
                 start, end = pos[i], pos[i + 1]
-
-                # cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
+                # -- Create cylinder for each edge --
                 a_dir = material_frame[i, 0]
                 cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
                     start=start, end=end, a_dir=a_dir, a=ax1_radii[i], b=ax2_radii[i], segments=16)
-
-                # Write cylinder vertices
+                # Write vertices and faces
                 for v in cyl_vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-
-                # Write cylinder faces
                 for face in cyl_faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
                 vertex_offset += len(cyl_vertices)
+        return
