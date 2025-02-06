@@ -7,6 +7,8 @@ from energies.bend_twist import BendTwist
 from energies.bend import Bend
 from energies.gravity import Gravity
 from energies.twist import Twist
+from rod.helix import Helix
+from rod.helix_util import HelixUtil
 from rod.rod_generator import RodGenerator
 from solver.sim import Sim
 from solver.solver_params import update_csv_analytics
@@ -76,11 +78,6 @@ def main():
 
     start = time.time()
 
-    # Straighten the rod (keeping edge lengths constant)
-    # edge_lengths = np.linalg.norm(pos[1:] - pos[:-1], axis=1)
-    # for i in range(1, n_points + 2):
-    #     pos[i] = np.array([0, 0, pos[0, 2] - np.sum(edge_lengths[:i])], dtype=np.float64)
-
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                  ax2_radii=ax2_radii, point_style=point_style, i=1)
 
@@ -100,5 +97,32 @@ def main():
     return
 
 
+def helix():
+    n_pts = 51  # Including index 0
+    L = 50
+    radius = 10
+    tau = np.ones(n_pts) * 0.5
+    k_1 = np.ones(n_pts) * 0.1
+    k_2 = np.ones(n_pts) * 0.0
+    q = np.stack([tau, k_1, k_2], axis=1).ravel()
+    s = np.linspace(0, L, n_pts)
+    r0 = np.zeros(3)
+    n0 = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
+    # Revisit this
+    EI = np.ones(3 * n_pts)
+
+    helix = Helix(q=q, q0=q.copy(), n_elems=n_pts, s=s, L=L, r0=r0, n0=n0, EI=EI)
+    r, n = HelixUtil.propagate(helix)
+
+    U = HelixUtil.compute_internal_potential_loop(helix)
+    U2 = HelixUtil.compute_internal_potential(helix)
+    Ug = HelixUtil.compute_gravity_potential_pos(helix, r, g=9.81, rhoS=1.0)
+    print(Ug)
+    create_frame(pos=r, material_frame=n[:, 1:], point_radii=0.0 * np.ones(n_pts), ax1_radii=0.2 * np.ones(n_pts),
+                 ax2_radii=0.1 * np.ones(n_pts), point_style=["sphere"] * n_pts, i=0)
+    # print(n)
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    helix()
