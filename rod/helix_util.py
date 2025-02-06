@@ -58,6 +58,14 @@ class HelixUtil:
         return K
 
     @staticmethod
+    def compute_inv_stiffness_matrix(helix: Helix) -> np.ndarray:
+        """ Computes the inverse of the stiffness matrix for the helix """
+        # Compute the length associated with each element
+        l = helix.s[1:] - helix.s[:-1]
+        K_inv = np.diag(1 / (helix.EI[3:] * l.repeat(3)))
+        return K_inv
+
+    @staticmethod
     def compute_mass_matrix(helix: Helix) -> np.ndarray:
         """
         Computes the mass matrix for the helix
@@ -104,3 +112,28 @@ class HelixUtil:
         l = helix.s[1:] - helix.s[:-1]
         mass = rhoS * l
         return g * np.sum(mass * r_com[:, 2])
+
+    @staticmethod
+    def compute_gen_gravity_force(helix: Helix, g: float, rhoS: float) -> np.ndarray:
+        """
+        Computes the generalized gravity force using numerical differentiation
+        """
+        grad = np.zeros(3 * (helix.n_elems - 1))
+        eps = 1e-6
+
+        q_free = helix.q.copy()[3:]
+        for i in range(3 * (helix.n_elems - 1)):
+            q_plus = q_free.copy()
+            q_plus[i] += eps
+            helix.q = np.concatenate([helix.q[:3], q_plus])
+            r_plus, _ = HelixUtil.propagate(helix)
+            U_g_plus = HelixUtil.compute_gravity_potential_pos(helix, r_plus, g, rhoS)
+
+            q_minus = q_free.copy()
+            q_minus[i] -= eps
+            helix.q = np.concatenate([helix.q[:3], q_minus])
+            r_minus, _ = HelixUtil.propagate(helix)
+            U_g_minus = HelixUtil.compute_gravity_potential_pos(helix, r_minus, g, rhoS)
+            # Finite difference
+            grad[i] = (U_g_plus - U_g_minus) / (2 * eps)
+        return -grad
