@@ -27,7 +27,7 @@ class Sim:
         self.analytics = init_solver_analytics()
 
         # Rod parameters
-        self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
+        self.define_rod_params(B=B, beta=beta, k=k, g=g, mass=mass)
         self.define_rest_state(pos=pos, theta=theta)
         self.state = empty_rod_state(n_vertices=pos.shape[0], frozen_pos_indices=frozen_pos_indices,
                                      frozen_theta_indices=frozen_theta_indices)
@@ -48,6 +48,11 @@ class Sim:
             l_bar_edge=edge_lengths,
             omega_bar=omega,
         )
+        return
+
+    def define_rod_params(self, B: np.ndarray, beta: float, k: float, g: float, mass: np.ndarray) -> None:
+        """ Set/reset the rod parameters """
+        self.rod_params = RodParams(B=B, beta=beta, k=k, mass=mass, g=g)
         return
 
     def update_state(self, pos: np.ndarray, theta: np.ndarray, theta_only: bool = False) -> None:
