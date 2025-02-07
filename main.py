@@ -7,9 +7,11 @@ from energies.bend_twist import BendTwist
 from energies.bend import Bend
 from energies.gravity import Gravity
 from energies.twist import Twist
+from rod.RodHelixConverter import RodHelixConverter
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
 from rod.rod_generator import RodGenerator
+from rod.rod_util import RodUtil
 from solver.sim import Sim
 from solver.solver_params import update_csv_analytics
 from visualization.visualizer import Visualizer
@@ -98,19 +100,19 @@ def main():
 
 
 def helix():
-    n_pts = 51  # Including index 0
+    n_pts = 41  # Including index 0
     L = 50
     s = np.linspace(0, L, n_pts)
     # Generalized coordinates
-    tau = np.ones(n_pts) * 0.5
-    k_1 = np.ones(n_pts) * 0.2
-    k_2 = np.ones(n_pts) * 0.02
+    tau = np.ones(n_pts) * 0.3
+    k_1 = np.ones(n_pts) * 0.01
+    k_2 = np.ones(n_pts) * 0.1
     q = np.stack([tau, k_1, k_2], axis=1).ravel()
     # Boundary/initial conditions
     r0 = np.array([0, 0, L])
     n0 = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
     # Stiffness, mass constants. Revisit this
-    EI = np.ones(3 * n_pts) * 100
+    EI = np.ones(3 * n_pts) * 1
     rhoS = 0.05
     g = 9.81 * 1e-3
 
@@ -121,7 +123,7 @@ def helix():
     point_style = ["sphere"] * n_pts
 
     # Draw the helix
-    helix = Helix(q=q, q0=q.copy(), n_elems=n_pts, s=s, L=L, r0=r0, n0=n0, EI=EI)
+    helix = Helix(q=q, q0=q.copy(), n_sites=n_pts, s=s, L=L, r0=r0, n0=n0, EI=EI)
     r, n = HelixUtil.propagate(helix)
     create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=0)
@@ -135,22 +137,41 @@ def helix():
     q_rest = np.concatenate([q_target[:3], q_rest])
 
     # Set and draw the rest state
-    helix.q = q_rest
+    # helix.q = q_rest
     helix.q0 = q_rest
     r, n = HelixUtil.propagate(helix)
     create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=1)
 
+    # Convert to DER
+    pos, theta = RodHelixConverter.helix_to_rod(helix)
+    bishop_frame = np.zeros((theta.shape[0], 2, 3))
+    bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
+    material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
+    create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
+                 point_style=point_style, i=2)
+
+
+    q_back = RodHelixConverter.rod_to_helix(pos, theta)
+    q_prev = helix.q.copy()
+    helix.q = q_back
+    r, n = HelixUtil.propagate(helix)
+    create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
+                 point_style=point_style, i=3)
+    helix.q = q_prev
+    quit()
+
+
     # Simulate the helix
     q = helix.q
     v = np.zeros(3 * n_pts)
     dt = 0.04
-    for i in range(2, 500):
+    for i in range(3, 500):
         print(f"Frame {i}")
         internal_force = -K @ (q[3:] - q_rest[3:])
         external_force = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
         B = internal_force + external_force
-        v[3:] += dt * B - 0.3 * v[3:]
+        v[3:] += dt * B - 0.1 * v[3:]
         q[3:] += dt * v[3:]
         helix.q = q
         # Print average z value of r
