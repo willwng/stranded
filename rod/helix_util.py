@@ -13,13 +13,13 @@ class HelixUtil:
         n_i(s) = n_{i, L}^{Q ||} + n_{i, L}^{Q perp} cos(Omega(s - s_L^Q)) + omega \cross n_{i, L}^{Q perp} sin(Omega(s - s_L^Q))
         """
         # Centerline and material frames
-        r = np.zeros((helix.n_elems, 3))
-        n = np.zeros((helix.n_elems, 3, 3))
+        r = np.zeros((helix.n_sites, 3))
+        n = np.zeros((helix.n_sites, 3, 3))
 
         # Starting with the clamped material frame, integrate forward
         r[0, :] = helix.r0
         n[0, :] = helix.n0
-        for i in range(1, helix.n_elems):
+        for i in range(1, helix.n_sites):
             # Left hand side of interval (previous element)
             r_L = r[i - 1]
             n_L = n[i - 1]
@@ -28,24 +28,23 @@ class HelixUtil:
             # Twist and curvature
             tau, k_1, k_2 = helix.q[3 * i - 3:3 * i]
             # Darboux vector and unit vector aligned with the Darboux vector
-            omega = tau * n_L[0, :] + k_1 * n_L[1, :] + k_2 * n_L[2, :]
-            omega_norm = np.linalg.norm(omega)
-            w = omega / omega_norm
+            Omega = tau * n_L[0, :] + k_1 * n_L[1, :] + k_2 * n_L[2, :]
+            Omega_norm = np.linalg.norm(Omega)
+            w = Omega / Omega_norm
 
             # Projection of vector parallel to and perpendicular to w
             n_L_par = np.dot(n_L, w)[:, np.newaxis] * w
             n_L_perp = n_L - n_L_par
 
             # Compute the material frame
-            n_i = n_L_par + n_L_perp * np.cos(omega_norm * s_sL) + np.cross(w, n_L_perp) * np.sin(omega_norm * s_sL)
+            n_i = n_L_par + n_L_perp * np.cos(Omega_norm * s_sL) + np.cross(w, n_L_perp) * np.sin(Omega_norm * s_sL)
             n[i] = n_i
 
             # Compute the centerline
-            n_0_L = n_L[0]
-            n_0_parallel = np.dot(n_0_L, w) * w
-            n_0_perp = n_0_L - n_0_parallel
-            r_i = (r_L + n_0_parallel * s_sL + n_0_perp * np.sin(omega_norm * s_sL) / omega_norm +
-                   np.cross(w, n_0_perp) * (1 - np.cos(omega_norm * s_sL)) / omega_norm)
+            n_0_parallel = n_L_par[0]
+            n_0_perp = n_L_perp[0]
+            r_i = (r_L + n_0_parallel * s_sL + n_0_perp * np.sin(Omega_norm * s_sL) / Omega_norm +
+                   np.cross(w, n_0_perp) * (1 - np.cos(Omega_norm * s_sL)) / Omega_norm)
             r[i] = r_i
         return r, n
 
@@ -79,7 +78,7 @@ class HelixUtil:
         U_in(q) = 0.5 \int_0^L \sum_{i=0}^{2} (EI)_i (k_i(s) - k_i^0)^2 ds
         """
         U_in = 0.0
-        for i in range(1, helix.n_elems):
+        for i in range(1, helix.n_sites):
             # Stiffness, differential arc length, and twist and curvature
             ds = helix.s[i] - helix.s[i - 1]
             EI_i = helix.EI[3 * i:3 * i + 3]
@@ -118,11 +117,11 @@ class HelixUtil:
         """
         Computes the generalized gravity force using numerical differentiation
         """
-        grad = np.zeros(3 * (helix.n_elems - 1))
+        grad = np.zeros(3 * (helix.n_sites - 1))
         eps = 1e-6
 
         q_free = helix.q.copy()[3:]
-        for i in range(3 * (helix.n_elems - 1)):
+        for i in range(3 * (helix.n_sites - 1)):
             q_plus = q_free.copy()
             q_plus[i] += eps
             helix.q = np.concatenate([helix.q[:3], q_plus])
