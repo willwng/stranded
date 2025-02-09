@@ -1,6 +1,6 @@
 import numpy as np
 
-from math_util.quaternion import Quaternion
+from math_util.rotation import Quaternion
 from math_util.vectors import Vector
 
 
@@ -74,6 +74,7 @@ class RodUtil:
     def update_bishop_frames(pos: np.ndarray, bishop_frame: np.ndarray, m0: np.ndarray = None) -> np.ndarray:
         """
         Computes the Bishop frame for each edge in the rod
+            if m0 is None, the first frame is computed from the edge, otherwise m0 is used
         """
         # First compute the bishop frame vector for edge 0
         t0 = pos[1] - pos[0]
