@@ -47,3 +47,30 @@ class Quaternion:
     @staticmethod
     def identity():
         return Quaternion(1.0, 0.0, 0.0, 0.0)
+
+
+class RotationUtil:
+    @staticmethod
+    def compute_rotation_matrix(basis1: np.ndarray, basis2: np.ndarray) -> np.ndarray:
+        """ Computes the rotation matrix that takes basis1 to basis2 """
+        R = np.dot(basis2, basis1.T)
+        return R
+
+    @staticmethod
+    def interpolate_rotation(R, t):
+        """ Interpolate between identity and rotation matrix R using parameter t. """
+        # Convert rotation matrix to axis-angle representation
+        theta = np.arccos((np.trace(R) - 1) / 2)
+        if np.abs(theta) < 1e-10:
+            return np.eye(3)
+
+        K = (R - R.T) / (2 * np.sin(theta))
+        axis = np.array([K[2, 1], K[0, 2], K[1, 0]])
+
+        # Interpolate angle
+        theta_t = t * theta
+
+        # Rodrigues rotation formula
+        K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
+        R_t = np.eye(3) + np.sin(theta_t) * K + (1 - np.cos(theta_t)) * np.dot(K, K)
+        return R_t

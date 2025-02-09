@@ -1,5 +1,6 @@
 import numpy as np
 
+from math_util.rotation import RotationUtil
 from math_util.vectors import Vector
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
@@ -8,11 +9,12 @@ from rod.rod_util import RodUtil
 
 class RodHelixConverter:
     @staticmethod
-    def rod_to_helix(pos: np.ndarray, theta: np.ndarray) -> np.ndarray:
+    def rod_to_helix(pos: np.ndarray, theta: np.ndarray, n0: np.ndarray) -> np.ndarray:
         """
         Converts a rod (explicit representation) to a helix (implicit representation)
         """
-        q = np.zeros(3 * (pos.shape[0]))
+        n_sites = pos.shape[0]
+        q = np.zeros(3 * n_sites)
         r0 = pos[0]
 
         e = pos[1:] - pos[:-1]
@@ -20,16 +22,21 @@ class RodHelixConverter:
         bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
 
-        for i in range(theta.shape[0]):
-            # Material frame for the ith edge
-            t_i = e[i] / np.linalg.norm(e[i])
-            n_i1, n_i2 = material_frame[i]
+        omega = RodUtil.compute_omega(theta=theta, kb=bishop_frame[:, 0], bishop_frame=bishop_frame)
 
-            # Next material frame
-            t_ip1 = e[i + 1] / np.linalg.norm(e[i + 1])
-            n_ip1_1, n_ip1_2 = material_frame[i + 1]
+        # For helices, we need to prescribe each site with a material frame
+        site_material_frames = np.zeros((n_sites, 3, 3))
+        for i in range(1, n_sites - 1):  # Skip end points
+            # Collect material frames (adjacent edges)
+            t_next = e[i] / np.linalg.norm(e[i])
+            t_prev = e[i - 1] / np.linalg.norm(e[i - 1])
+            m_next_1, m_next_2 = material_frame[i]
+            m_prev_1, m_prev_2 = material_frame[i - 1]
+            # Interpolate between edges for site material frame
+            m_1, m_2 = (m_next_1 + m_prev_1) / 2, (m_next_2 + m_prev_2) / 2
+            # print(np.dot(m_1, m_2))
 
-            # Compute the Darboux vector
+            q[3 * i] = 0.01
 
         return q
 
@@ -40,26 +47,28 @@ class RodHelixConverter:
         # Compute the bishop frames, so we can get theta
         bishop_frame = np.zeros((n.shape[0] - 1, 2, 3))
         # The material frame of the first helix "edge"
-        m0 = (helix.n0 + n[1]) / 2
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=m0[1:])
+        rotation = RotationUtil.compute_rotation_matrix(n[0], n[1])
+        rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
+        init_bishop_frame = (rotation @ n[0])[1:]
+        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
 
         theta = np.zeros(pos.shape[0] - 1)
         for i in range(n.shape[0] - 1):
-            # Collect material frames
-            _, mi1, mi2 = n[i]
-            _, mp1, mp2 = n[i + 1]
-
-            # Interpolate the material frame (for the edge)
-            m1 = (mi1 + mp1) / 2
-            m2 = (mi2 + mp2) / 2
-
             # Collect bishop frame
             e = pos[i + 1] - pos[i]
             t = e / np.linalg.norm(e)
             b1, b2 = bishop_frame[i]
 
-            # Find the rotation angle that takes [b1, b2] to [m1, m2],
-            #  rotation about t
+            # Interpolate the material frame between the two sites
+            rotation = RotationUtil.compute_rotation_matrix(n[i], n[i + 1])
+            rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
+            rotated_frame = rotation @ n[i]
+            m1 = rotated_frame[1]
+            if i == 0:
+                print("----------------")
+                print(rotated_frame)
+
+            # Find the rotation angle that takes [b1, b2] to [m1, m2], rotation about t
             b1_proj = b1 - np.dot(b1, t) * t
             b1_proj = b1_proj / np.linalg.norm(b1_proj)
 
@@ -79,4 +88,4 @@ class RodHelixConverter:
             t = sign * t
             theta[i] = t
 
-        return pos, theta
+        return pos, theta, init_bishop_frame

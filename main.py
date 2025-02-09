@@ -7,6 +7,7 @@ from energies.bend_twist import BendTwist
 from energies.bend import Bend
 from energies.gravity import Gravity
 from energies.twist import Twist
+from math_util.rotation import RotationUtil
 from rod.RodHelixConverter import RodHelixConverter
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
@@ -100,13 +101,13 @@ def main():
 
 
 def helix():
-    n_pts = 41  # Including index 0
+    n_pts = 31  # Including index 0
     L = 50
     s = np.linspace(0, L, n_pts)
     # Generalized coordinates
-    tau = np.ones(n_pts) * 0.3
+    tau = np.ones(n_pts) * 0.5
     k_1 = np.ones(n_pts) * 0.01
-    k_2 = np.ones(n_pts) * 0.1
+    k_2 = np.ones(n_pts) * 0.2
     q = np.stack([tau, k_1, k_2], axis=1).ravel()
     # Boundary/initial conditions
     r0 = np.array([0, 0, L])
@@ -140,19 +141,27 @@ def helix():
     # helix.q = q_rest
     helix.q0 = q_rest
     r, n = HelixUtil.propagate(helix)
-    create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
+    # Interpolate the material frame between the two sites
+    material_frame = np.zeros((n.shape[0] - 1, 2, 3))
+    for i in range(n.shape[0] - 1):
+        rotation = RotationUtil.compute_rotation_matrix(n[i], n[i + 1])
+        rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
+        interpolated_frame = rotation @ n[i]
+        material_frame[i] = interpolated_frame[1:]
+
+    create_frame(pos=r, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=1)
 
     # Convert to DER
-    pos, theta = RodHelixConverter.helix_to_rod(helix)
+    pos, theta, init_bishop_frame = RodHelixConverter.helix_to_rod(helix)
     bishop_frame = np.zeros((theta.shape[0], 2, 3))
-    bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
+    bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
     material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=2)
 
 
-    q_back = RodHelixConverter.rod_to_helix(pos, theta)
+    q_back = RodHelixConverter.rod_to_helix(pos, theta, n0)
     q_prev = helix.q.copy()
     helix.q = q_back
     r, n = HelixUtil.propagate(helix)
