@@ -74,3 +74,23 @@ class RotationUtil:
         K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
         R_t = np.eye(3) + np.sin(theta_t) * K + (1 - np.cos(theta_t)) * np.dot(K, K)
         return R_t
+
+    @staticmethod
+    def compute_darboux_vector(frame1, frame2, ds):
+        """
+        Computes the Darboux vector that transforms frame1 into frame2 over a small displacement ds.
+        """
+        # Compute the rotation matrix R
+        R = frame2 @ frame1.T
+
+        # Compute the skew-symmetric part
+        W = (R - R.T) / (2 * ds)
+
+        # Extract the Darboux vector components
+        darboux_vector = np.array([
+            W[2, 1],
+            W[0, 2],
+            W[1, 0]
+        ])
+
+        return darboux_vector

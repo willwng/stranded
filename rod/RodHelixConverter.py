@@ -9,7 +9,7 @@ from rod.rod_util import RodUtil
 
 class RodHelixConverter:
     @staticmethod
-    def rod_to_helix(pos: np.ndarray, theta: np.ndarray, n0: np.ndarray) -> np.ndarray:
+    def rod_to_helix(pos: np.ndarray, theta: np.ndarray, init_bishop_frame: np.ndarray, n0: np.ndarray) -> np.ndarray:
         """
         Converts a rod (explicit representation) to a helix (implicit representation)
         """
@@ -18,25 +18,35 @@ class RodHelixConverter:
         r0 = pos[0]
 
         e = pos[1:] - pos[:-1]
+        edge_lengths = np.linalg.norm(e, axis=1)
         bishop_frame = np.zeros((theta.shape[0], 2, 3))
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
+        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
-
-        omega = RodUtil.compute_omega(theta=theta, kb=bishop_frame[:, 0], bishop_frame=bishop_frame)
 
         # For helices, we need to prescribe each site with a material frame
         site_material_frames = np.zeros((n_sites, 3, 3))
-        for i in range(1, n_sites - 1):  # Skip end points
-            # Collect material frames (adjacent edges)
-            t_next = e[i] / np.linalg.norm(e[i])
-            t_prev = e[i - 1] / np.linalg.norm(e[i - 1])
-            m_next_1, m_next_2 = material_frame[i]
-            m_prev_1, m_prev_2 = material_frame[i - 1]
-            # Interpolate between edges for site material frame
-            m_1, m_2 = (m_next_1 + m_prev_1) / 2, (m_next_2 + m_prev_2) / 2
-            # print(np.dot(m_1, m_2))
+        site_material_frames[0] = n0
+        curr_frame = n0
+        for i in range(n_sites - 1):
+            m = material_frame[i]
+            t = e[i] / np.linalg.norm(e[i])
+            edge_frame = np.array([t, m[0], m[1]])
+            # Propagate the material frames
+            rotation = RotationUtil.compute_rotation_matrix(curr_frame, edge_frame)
+            rotation = RotationUtil.interpolate_rotation(rotation, 2.0)
+            curr_frame = rotation @ curr_frame
+            site_material_frames[i + 1] = curr_frame
 
-            q[3 * i] = 0.01
+        # Now we can compute the generalized coordinates
+        for i in range(n_sites - 1):
+            # Collect material frame at this site and next site
+            prev_frame = site_material_frames[i]
+            next_frame = site_material_frames[i + 1]
+            # Compute the Darboux vector
+            Omega = RotationUtil.compute_darboux_vector(prev_frame.T, next_frame.T, edge_lengths[i])
+            # Compute curvatures through solve
+            curvatures = np.linalg.solve(prev_frame.T, Omega)
+            q[3 * i:3 * i + 3] = curvatures
 
         return q
 
@@ -46,7 +56,7 @@ class RodHelixConverter:
         pos = r
         # Compute the bishop frames, so we can get theta
         bishop_frame = np.zeros((n.shape[0] - 1, 2, 3))
-        # The material frame of the first helix "edge"
+        # The material frame of the first edge
         rotation = RotationUtil.compute_rotation_matrix(n[0], n[1])
         rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
         init_bishop_frame = (rotation @ n[0])[1:]
@@ -64,9 +74,6 @@ class RodHelixConverter:
             rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
             rotated_frame = rotation @ n[i]
             m1 = rotated_frame[1]
-            if i == 0:
-                print("----------------")
-                print(rotated_frame)
 
             # Find the rotation angle that takes [b1, b2] to [m1, m2], rotation about t
             b1_proj = b1 - np.dot(b1, t) * t

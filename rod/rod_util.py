@@ -80,6 +80,7 @@ class RodUtil:
         t0 = pos[1] - pos[0]
         t0 /= np.linalg.norm(t0)
 
+        # Use the given initial bishop frame
         if m0 is not None:
             u, v = m0
         else:
