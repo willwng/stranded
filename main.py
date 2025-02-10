@@ -105,7 +105,7 @@ def helix():
     L = 50
     s = np.linspace(0, L, n_pts)
     # Generalized coordinates
-    tau = np.ones(n_pts) * 0.5
+    tau = np.ones(n_pts) * 0.2
     k_1 = np.ones(n_pts) * 0.01
     k_2 = np.ones(n_pts) * 0.2
     q = np.stack([tau, k_1, k_2], axis=1).ravel()
@@ -161,33 +161,39 @@ def helix():
                  point_style=point_style, i=2)
 
 
-    q_back = RodHelixConverter.rod_to_helix(pos, theta, n0)
+    # Try to convert back to helix
+    q_back = RodHelixConverter.rod_to_helix(pos, theta, init_bishop_frame, n0)
     q_prev = helix.q.copy()
     helix.q = q_back
     r, n = HelixUtil.propagate(helix)
-    create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
+    # Interpolate the material frame between the two sites
+    material_frame = np.zeros((n.shape[0] - 1, 2, 3))
+    for i in range(n.shape[0] - 1):
+        rotation = RotationUtil.compute_rotation_matrix(n[i], n[i + 1])
+        rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
+        interpolated_frame = rotation @ n[i]
+        material_frame[i] = interpolated_frame[1:]
+    create_frame(pos=r, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=3)
     helix.q = q_prev
-    quit()
 
-
-    # Simulate the helix
-    q = helix.q
-    v = np.zeros(3 * n_pts)
-    dt = 0.04
-    for i in range(3, 500):
-        print(f"Frame {i}")
-        internal_force = -K @ (q[3:] - q_rest[3:])
-        external_force = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
-        B = internal_force + external_force
-        v[3:] += dt * B - 0.1 * v[3:]
-        q[3:] += dt * v[3:]
-        helix.q = q
-        # Print average z value of r
-        r, n = HelixUtil.propagate(helix)
-        create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
-                     point_style=point_style, i=i)
-    # print(n)
+    # # Simulate the helix
+    # q = helix.q
+    # v = np.zeros(3 * n_pts)
+    # dt = 0.04
+    # for i in range(3, 500):
+    #     print(f"Frame {i}")
+    #     internal_force = -K @ (q[3:] - q_rest[3:])
+    #     external_force = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
+    #     B = internal_force + external_force
+    #     v[3:] += dt * B - 0.1 * v[3:]
+    #     q[3:] += dt * v[3:]
+    #     helix.q = q
+    #     # Print average z value of r
+    #     r, n = HelixUtil.propagate(helix)
+    #     create_frame(pos=r, material_frame=n[:, 1:], point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
+    #                  point_style=point_style, i=i)
+    # # print(n)
 
 
 if __name__ == "__main__":
