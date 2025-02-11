@@ -92,8 +92,7 @@ class Visualizer:
             f.write("# Point cloud with 3D points and lines\n")
 
             vertex_offset = 1  # OBJ uses 1-based indexing
-
-            # Create spheres for points
+            # --- Begin draw points ---
             for i, point in enumerate(pos):
                 if point_style[i] == "sphere":
                     vertices, faces = ObjUtil.create_sphere(point, point_radii[i])
@@ -102,17 +101,14 @@ class Visualizer:
                 else:
                     raise ValueError(f"Unknown point style: {point_style[i]}")
 
-                # Write sphere vertices
+                # Output to OBJ
                 for v in vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-
-                # Write sphere faces
                 for face in faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-
                 vertex_offset += len(vertices)
 
-            # Create cylinders for each edge
+            # --- Begin draw edges ---
             for i in range(pos.shape[0] - 1):
                 start, end = pos[i], pos[i + 1]
 
@@ -121,12 +117,10 @@ class Visualizer:
                 cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
                     start=start, end=end, a_dir=a_dir, a=ax1_radii[i], b=ax2_radii[i], segments=16)
 
-                # Write cylinder vertices
                 for v in cyl_vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-
-                # Write cylinder faces
                 for face in cyl_faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
                 vertex_offset += len(cyl_vertices)
+        return
