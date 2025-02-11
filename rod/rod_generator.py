@@ -48,7 +48,7 @@ class RodGenerator:
         vertices = []
         thetas = []
         for i in range(n_points + 2):
-            pos = np.array([0, 0, i], dtype=np.float64) + np.random.normal(0, 0.1, 3)
+            pos = np.array([0, 0, i], dtype=np.float64) + np.random.normal(0, 1.1, 3)
             thetas.append(np.random.rand())
             vertices.append(pos)
         vertices.reverse()

@@ -8,32 +8,43 @@ from rod.rod_util import RodUtil
 
 class RodHelixConverter:
     @staticmethod
-    def rod_to_helix(pos: np.ndarray, theta: np.ndarray, init_bishop_frame: np.ndarray, n0: np.ndarray) -> np.ndarray:
+    def rod_to_helix(pos: np.ndarray, theta: np.ndarray) -> Helix:
         """
         Converts a rod (explicit representation) to a helix (implicit representation)
         """
         n_sites = pos.shape[0]
         q = np.zeros(3 * n_sites)
-        r0 = pos[0]
 
+        # Edge lengths and material frames of each edge
         e = pos[1:] - pos[:-1]
         edge_lengths = np.linalg.norm(e, axis=1)
-        bishop_frame = RodUtil.compute_bishop_frames(pos=pos, m0=init_bishop_frame)
+        bishop_frame = RodUtil.compute_bishop_frames(pos=pos, m0=None)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
+
+        # Estimate n0 by interpolating back from the first two material frames
+        m_prev, m_next = material_frame[0], material_frame[1]
+        t_prev, t_next = e[0] / edge_lengths[0], e[1] / edge_lengths[1]
+        edge_frame_prev, edge_frame_next = np.array([t_prev, m_prev[0], m_prev[1]]), np.array(
+            [t_next, m_next[0], m_next[1]])
+        rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
+        rotation = RotationUtil.interpolate_rotation(rotation, edge_lengths[0] / (edge_lengths[0] + edge_lengths[1]))
+        n0 = rotation @ edge_frame_prev
 
         # For helices, we need to prescribe each site with a material frame
         site_material_frames = np.zeros((n_sites, 3, 3))
         site_material_frames[0] = n0
-        curr_frame = n0
-        for i in range(n_sites - 1):
-            m = material_frame[i]
-            t = e[i] / np.linalg.norm(e[i])
-            edge_frame = np.array([t, m[0], m[1]])
-            # Propagate the material frames
-            rotation = RotationUtil.compute_rotation_matrix(curr_frame, edge_frame)
-            rotation = RotationUtil.interpolate_rotation(rotation, 2.0)
-            curr_frame = rotation @ curr_frame
-            site_material_frames[i + 1] = curr_frame
+        for i in range(1, n_sites - 1):
+            m_prev, m_next = material_frame[i - 1], material_frame[i]
+            t_prev, t_next = e[i - 1] / edge_lengths[i - 1], e[i] / edge_lengths[i]
+            edge_frame_prev, edge_frame_next = np.array([t_prev, m_prev[0], m_prev[1]]), np.array(
+                [t_next, m_next[0], m_next[1]])
+            # Propagate the material frames (based on distance of node from edge centers)
+            rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
+            inter_fraction = edge_lengths[i-1] / (edge_lengths[i] + edge_lengths[i - 1])
+            rotation = RotationUtil.interpolate_rotation(rotation, inter_fraction)
+            site_material_frames[i] = rotation @ edge_frame_prev
+            if i == n_sites - 2:
+                site_material_frames[-1] = rotation @ edge_frame_next
 
         # Now we can compute the generalized coordinates
         for i in range(n_sites - 1):
@@ -44,10 +55,14 @@ class RodHelixConverter:
             Omega = RotationUtil.compute_darboux_vector(prev_frame.T, next_frame.T, edge_lengths[i])
             # Compute curvatures through solve
             curvatures = np.linalg.solve(prev_frame.T, Omega)
-            print(curvatures)
             q[3 * i:3 * i + 3] = curvatures
 
-        return q
+        # Compute extra helix data
+        s = np.cumsum(edge_lengths)
+        s = np.insert(s, 0, 0)
+        L = np.sum(edge_lengths)
+        r0 = pos[0]
+        return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
     def helix_to_rod(helix: Helix):
