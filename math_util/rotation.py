@@ -52,7 +52,9 @@ class Quaternion:
 class RotationUtil:
     @staticmethod
     def compute_rotation_matrix(basis1: np.ndarray, basis2: np.ndarray) -> np.ndarray:
-        """ Computes the rotation matrix that takes basis1 to basis2 """
+        """ Computes the rotation matrix that takes basis1 to basis2
+            basis1 and basis2 have orthonormal rows
+        """
         R = np.dot(basis2, basis1.T)
         return R
 
