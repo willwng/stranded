@@ -71,7 +71,7 @@ class RodUtil:
         return omegas
 
     @staticmethod
-    def compute_bishop_frames(pos: np.ndarray, m0: np.ndarray = None) -> np.ndarray:
+    def compute_bishop_frames(pos: np.ndarray) -> np.ndarray:
         """
         Computes the Bishop frame for each edge in the rod
             if m0 is None, the first frame is computed from the edge, otherwise m0 is used
@@ -83,14 +83,10 @@ class RodUtil:
         t0 = pos[1] - pos[0]
         t0 /= np.linalg.norm(t0)
 
-        # Use the given initial bishop frame
-        if m0 is not None:
-            u, v = m0
-        else:
-            # Get vector orthogonal to t0 to define the bishop frame
-            u = Vector.compute_orthogonal_vec(t0)
-            v = np.cross(t0, u)
-            u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
+        # Get vector orthogonal to t0 to define the bishop frame
+        u = Vector.compute_orthogonal_vec(t0)
+        v = np.cross(t0, u)
+        u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
         bishop_frame[0] = np.array([u, v])
 
         # Parallel transport the frame along the strand
