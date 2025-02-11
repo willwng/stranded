@@ -71,11 +71,14 @@ class RodUtil:
         return omegas
 
     @staticmethod
-    def update_bishop_frames(pos: np.ndarray, bishop_frame: np.ndarray, m0: np.ndarray = None) -> np.ndarray:
+    def compute_bishop_frames(pos: np.ndarray, m0: np.ndarray = None) -> np.ndarray:
         """
         Computes the Bishop frame for each edge in the rod
             if m0 is None, the first frame is computed from the edge, otherwise m0 is used
         """
+        n_edges = pos.shape[0] - 1
+        bishop_frame = np.zeros((n_edges, 2, 3))
+
         # First compute the bishop frame vector for edge 0
         t0 = pos[1] - pos[0]
         t0 /= np.linalg.norm(t0)

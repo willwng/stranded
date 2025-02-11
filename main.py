@@ -154,8 +154,7 @@ def helix():
 
     # Convert to DER
     pos, theta, init_bishop_frame = RodHelixConverter.helix_to_rod(helix)
-    bishop_frame = np.zeros((theta.shape[0], 2, 3))
-    bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
+    bishop_frame = RodUtil.compute_bishop_frames(pos=pos, m0=init_bishop_frame)
     material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii, ax2_radii=ax2_radii,
                  point_style=point_style, i=2)
