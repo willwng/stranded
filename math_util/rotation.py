@@ -76,9 +76,11 @@ class RotationUtil:
         return R_t
 
     @staticmethod
-    def compute_darboux_vector(frame1, frame2, ds):
+    def compute_darboux_vector(frame1: np.ndarray, frame2: np.ndarray, ds: float) -> np.ndarray:
         """
         Computes the Darboux vector that transforms frame1 into frame2 over a small displacement ds.
+            frame1 has orthonormal columns [t1, m1, n1]
+            frame2 has orthonormal columns [t2, m2, n2]
         """
         # Compute the rotation matrix R
         R = frame2 @ frame1.T

@@ -1,7 +1,6 @@
 import numpy as np
 
 from math_util.rotation import RotationUtil
-from math_util.vectors import Vector
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
 from rod.rod_util import RodUtil
@@ -45,6 +44,7 @@ class RodHelixConverter:
             Omega = RotationUtil.compute_darboux_vector(prev_frame.T, next_frame.T, edge_lengths[i])
             # Compute curvatures through solve
             curvatures = np.linalg.solve(prev_frame.T, Omega)
+            print(curvatures)
             q[3 * i:3 * i + 3] = curvatures
 
         return q
@@ -52,8 +52,9 @@ class RodHelixConverter:
     @staticmethod
     def helix_to_rod(helix: Helix):
         r, n = HelixUtil.propagate(helix)
-        pos = r
-        # The material frame of the first edge
+        pos = r.copy()
+
+        # Compute the frame of the first edge
         rotation = RotationUtil.compute_rotation_matrix(n[0], n[1])
         rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
         init_bishop_frame = (rotation @ n[0])[1:]
