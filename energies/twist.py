@@ -9,7 +9,10 @@ class Twist(Energy):
     def compute_energy(pos: np.ndarray, theta: np.ndarray, rod_state: RodState, init_rod_state: InitialRodState,
                        rod_params: RodParams):
         l = init_rod_state.l_bar
-        energy = np.sum(rod_params.beta * (theta[1:] - theta[:-1]) ** 2 / l[1:])
+        # Twist and rest twist
+        theta_diff = theta[1:] - theta[:-1]
+        theta_diff_bar = init_rod_state.theta0[1:] - init_rod_state.theta0[:-1]
+        energy = np.sum(rod_params.beta * (theta_diff - theta_diff_bar) ** 2 / l[1:])
         return energy
 
     @staticmethod
@@ -17,9 +20,11 @@ class Twist(Energy):
                          init_rod_state: InitialRodState, rod_params: RodParams):
         l_bar = init_rod_state.l_bar
         beta = rod_params.beta
-        # All but first edge, all but last theta
-        grad[1:] += 2 * beta * (theta[1:] - theta[:-1]) / l_bar[1:]
-        grad[:-1] -= 2 * beta * (theta[1:] - theta[:-1]) / l_bar[1:]
+        theta_diff = theta[1:] - theta[:-1]
+        theta_diff_bar = init_rod_state.theta0[1:] - init_rod_state.theta0[:-1]
+        # All but first edge, then all but last edge
+        grad[1:] += 2 * beta * (theta_diff - theta_diff_bar) / l_bar[1:]
+        grad[:-1] -= 2 * beta * (theta_diff - theta_diff_bar) / l_bar[1:]
         return grad
 
     @staticmethod
