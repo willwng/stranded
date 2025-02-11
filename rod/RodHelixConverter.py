@@ -19,8 +19,7 @@ class RodHelixConverter:
 
         e = pos[1:] - pos[:-1]
         edge_lengths = np.linalg.norm(e, axis=1)
-        bishop_frame = np.zeros((theta.shape[0], 2, 3))
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
+        bishop_frame = RodUtil.compute_bishop_frames(pos=pos, m0=init_bishop_frame)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
 
         # For helices, we need to prescribe each site with a material frame
@@ -54,13 +53,11 @@ class RodHelixConverter:
     def helix_to_rod(helix: Helix):
         r, n = HelixUtil.propagate(helix)
         pos = r
-        # Compute the bishop frames, so we can get theta
-        bishop_frame = np.zeros((n.shape[0] - 1, 2, 3))
         # The material frame of the first edge
         rotation = RotationUtil.compute_rotation_matrix(n[0], n[1])
         rotation = RotationUtil.interpolate_rotation(rotation, 0.5)
         init_bishop_frame = (rotation @ n[0])[1:]
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame, m0=init_bishop_frame)
+        bishop_frame = RodUtil.compute_bishop_frames(pos=pos, m0=init_bishop_frame)
 
         theta = np.zeros(pos.shape[0] - 1)
         for i in range(n.shape[0] - 1):

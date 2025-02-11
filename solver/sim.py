@@ -18,8 +18,7 @@ class Sim:
         edge_lengths = RodUtil.compute_edge_lengths(pos=pos)
         node_lengths = RodUtil.compute_node_lengths(edge_lengths=edge_lengths)
         kb, kb_den = RodUtil.compute_curvature_binormal(pos=pos, rest_edge_lengths=edge_lengths)
-        bishop_frame = np.zeros((theta.shape[0], 2, 3))
-        bishop_frame = RodUtil.update_bishop_frames(pos=pos, bishop_frame=bishop_frame)
+        bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
         omega = RodUtil.compute_omega(theta=theta, kb=kb, bishop_frame=bishop_frame)
         # Derivatives
@@ -91,7 +90,7 @@ class Sim:
 
     def update_bishop_frames(self, pos: np.ndarray):
         """ Update the bishop frames of the rod """
-        self.state.bishop_frame = RodUtil.update_bishop_frames(pos, self.state.bishop_frame)
+        self.state.bishop_frame = RodUtil.compute_bishop_frames(pos)
         return
 
     def update_material_frames(self, theta: np.ndarray):
