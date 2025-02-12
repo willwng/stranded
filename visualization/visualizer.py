@@ -82,7 +82,8 @@ class Visualizer:
                       point_style: list[str],
                       output_file: str,
                       y_up: bool = True,
-                      site_material_frames: np.ndarray = None):
+                      site_material_frames: np.ndarray = None,
+                      draw_arrows: bool = False):
         """ OBJ output with spheres for points and cylinders for lines """
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
@@ -111,7 +112,7 @@ class Visualizer:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
                 vertex_offset += len(vertices)
 
-                if site_material_frames is not None:
+                if site_material_frames is not None and draw_arrows:
                     frame = site_material_frames[i]
                     for j in range(3):
                         arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=point, direction=frame[j], length=1.0, radius=0.02)
@@ -134,8 +135,10 @@ class Visualizer:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
                 for face in cyl_faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-
                 vertex_offset += len(cyl_vertices)
+
+                if not draw_arrows:
+                    continue
                 # Draw arrows corresponding to the material frame
                 arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=a_dir,
                                                                      length=1.0, radius=0.02)
