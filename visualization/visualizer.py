@@ -81,12 +81,15 @@ class Visualizer:
                       ax2_radii: np.ndarray,
                       point_style: list[str],
                       output_file: str,
-                      y_up: bool = True):
+                      y_up: bool = True,
+                      site_material_frames: np.ndarray = None):
         """ OBJ output with spheres for points and cylinders for lines """
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
             pos = pos[:, [0, 2, 1]]
             material_frame = material_frame[:, :, [0, 2, 1]]
+            if site_material_frames is not None:
+                site_material_frames = site_material_frames[:, :, [0, 2, 1]]
 
         with open(output_file, 'w') as f:
             f.write("# Point cloud with 3D points and lines\n")
@@ -108,19 +111,47 @@ class Visualizer:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
                 vertex_offset += len(vertices)
 
+                if site_material_frames is not None:
+                    frame = site_material_frames[i]
+                    for j in range(3):
+                        arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=point, direction=frame[j], length=1.0, radius=0.02)
+                        for v in arrow_vertices:
+                            f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+                        for face in arrow_faces:
+                            f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
+                        vertex_offset += len(arrow_vertices)
+
             # --- Begin draw edges ---
             for i in range(pos.shape[0] - 1):
                 start, end = pos[i], pos[i + 1]
 
                 # cyl_vertices, cyl_faces = ObjUtil.create_cylinder(start, end, line_radius)
                 a_dir = material_frame[i, 0]
+                b_dir = material_frame[i, 1]
                 cyl_vertices, cyl_faces = ObjUtil.create_elliptical_cylinder(
                     start=start, end=end, a_dir=a_dir, a=ax1_radii[i], b=ax2_radii[i], segments=16)
-
                 for v in cyl_vertices:
                     f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
                 for face in cyl_faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
                 vertex_offset += len(cyl_vertices)
+                # Draw arrows corresponding to the material frame
+                arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=a_dir,
+                                                                     length=1.0, radius=0.02)
+                for v in arrow_vertices:
+                    f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+                for face in arrow_faces:
+                    f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
+
+                vertex_offset += len(arrow_vertices)
+                arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=b_dir,
+                                                                   length=1.0, radius=0.02)
+
+                for v in arrow_vertices:
+                    f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+                for face in arrow_faces:
+                    f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
+
+                vertex_offset += len(arrow_vertices)
         return

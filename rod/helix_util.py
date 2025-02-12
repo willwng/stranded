@@ -69,18 +69,8 @@ class HelixUtil:
         """ Computes the stiffness matrix for the helix, where we want point-wise quantities
             versus integrated quantities (following DER paper) """
         l = helix.s[1:] - helix.s[:-1]
-        diag = helix.EI[3:] * (2 / l.repeat(3))
-        K = diags(diag)
+        K = diags(helix.EI[3:] * 2 * l.repeat(3))
         return K
-
-    @staticmethod
-    def compute_inv_pointwise_stiffness_matrix(helix: Helix) -> np.ndarray:
-        """ Computes the inverse of the stiffness matrix for the helix, where we want point-wise quantities
-            versus integrated quantities (following DER paper) """
-        l = helix.s[1:] - helix.s[:-1]
-        diag = helix.EI[3:] * (2 / l.repeat(3))
-        K_inv = np.diag(1 / diag)
-        return K_inv
 
     @staticmethod
     def compute_inv_stiffness_matrix(helix: Helix) -> spmatrix:
@@ -88,6 +78,14 @@ class HelixUtil:
         # Compute the length associated with each element
         l = helix.s[1:] - helix.s[:-1]
         K_inv = diags(1 / (helix.EI[3:] * l.repeat(3)))
+        return K_inv
+
+    @staticmethod
+    def compute_inv_pointwise_stiffness_matrix(helix: Helix) -> np.ndarray:
+        """ Computes the inverse of the stiffness matrix for the helix, where we want point-wise quantities
+            versus integrated quantities (following DER paper) """
+        l = helix.s[1:] - helix.s[:-1]
+        K_inv = np.diag(1 / (helix.EI[3:] * 2 * l.repeat(3)))
         return K_inv
 
     @staticmethod

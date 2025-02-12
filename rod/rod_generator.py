@@ -123,6 +123,9 @@ class RodGenerator:
         for _ in range(5):
             pos = RodGenerator.redistribute_vertices(pos)
 
+        # Fill in the gaps between connected points
+        pos = RodGenerator.add_vertices(pos)
+
         # Set thetas to zero (hard to determine twist)
         thetas = np.zeros(pos.shape[0] - 1)
         return np.array(pos), thetas
@@ -210,3 +213,15 @@ class RodGenerator:
         new_vertices = np.array(new_vertices)
 
         return new_vertices
+
+    @staticmethod
+    def add_vertices(vertices):
+        # Add vertices between connected points
+        new_vertices = []
+        for i in range(len(vertices) - 1):
+            new_vertices.append(vertices[i])
+            new_vertices.append((vertices[i] + vertices[i + 1]) / 2)
+
+        new_vertices.append(vertices[-1])
+        return np.array(new_vertices)
+
