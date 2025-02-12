@@ -13,7 +13,7 @@ class RodGenerator:
         height_scale = 0.5
         for i in range(n + 2):
             pos = np.array(
-                [0 * np.cos(curl_frequency * i), curl_radius * np.sin(curl_frequency * i), height_scale * i],
+                [curl_radius * np.cos(curl_frequency * i), curl_radius * np.sin(curl_frequency * i), height_scale * i],
                 dtype=np.float64)
             vertices.append(pos)
 

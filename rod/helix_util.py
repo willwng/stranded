@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse import diags, spmatrix
 
 from rod.helix import Helix
 
@@ -30,6 +31,13 @@ class HelixUtil:
             # Darboux vector and unit vector aligned with the Darboux vector
             Omega = tau * n_L[0, :] + k_1 * n_L[1, :] + k_2 * n_L[2, :]
             Omega_norm = np.linalg.norm(Omega)
+
+            # Degenerate case: straight line/no change in material frame
+            if Omega_norm < 1e-12:
+                n[i] = n_L
+                r[i] = r_L + n_L[0] * s_sL
+                continue
+
             w = Omega / Omega_norm
 
             # Projection of vector parallel to and perpendicular to w
@@ -49,19 +57,37 @@ class HelixUtil:
         return r, n
 
     @staticmethod
-    def compute_stiffness_matrix(helix: Helix) -> np.ndarray:
+    def compute_stiffness_matrix(helix: Helix) -> spmatrix:
         """ Computes the stiffness matrix for the helix """
         # Compute the length associated with each element
         l = helix.s[1:] - helix.s[:-1]
-        K = np.diag(helix.EI[3:] * l.repeat(3))
+        K = diags(helix.EI[3:] * l.repeat(3))
         return K
 
     @staticmethod
-    def compute_inv_stiffness_matrix(helix: Helix) -> np.ndarray:
+    def compute_pointwise_stiffness_matrix(helix: Helix) -> spmatrix:
+        """ Computes the stiffness matrix for the helix, where we want point-wise quantities
+            versus integrated quantities (following DER paper) """
+        l = helix.s[1:] - helix.s[:-1]
+        diag = helix.EI[3:] * (2 / l.repeat(3))
+        K = diags(diag)
+        return K
+
+    @staticmethod
+    def compute_inv_pointwise_stiffness_matrix(helix: Helix) -> np.ndarray:
+        """ Computes the inverse of the stiffness matrix for the helix, where we want point-wise quantities
+            versus integrated quantities (following DER paper) """
+        l = helix.s[1:] - helix.s[:-1]
+        diag = helix.EI[3:] * (2 / l.repeat(3))
+        K_inv = np.diag(1 / diag)
+        return K_inv
+
+    @staticmethod
+    def compute_inv_stiffness_matrix(helix: Helix) -> spmatrix:
         """ Computes the inverse of the stiffness matrix for the helix """
         # Compute the length associated with each element
         l = helix.s[1:] - helix.s[:-1]
-        K_inv = np.diag(1 / (helix.EI[3:] * l.repeat(3)))
+        K_inv = diags(1 / (helix.EI[3:] * l.repeat(3)))
         return K_inv
 
     @staticmethod
