@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from energies.bend import Bend
@@ -21,10 +22,12 @@ def create_frame(pos: np.ndarray,
                  ax1_radii: np.ndarray,
                  ax2_radii: np.ndarray,
                  point_style: list[str],
-                 frame_idx: int):
+                 frame_idx: int,
+                 site_material_frames: np.ndarray = None):
     Visualizer.strand_to_obj(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                              ax2_radii=ax2_radii, point_style=point_style,
-                             output_file=f"output/obj/obj_{frame_idx}.obj")
+                             output_file=f"output/obj/obj_{frame_idx}.obj",
+                             site_material_frames=site_material_frames)
     return
 
 
@@ -40,20 +43,31 @@ def create_frame_helix(helix: Helix, point_radii: np.ndarray, ax1_radii: np.ndar
         material_frame[i] = interpolated_frame[1:]
 
     create_frame(pos=r, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=frame_idx)
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=frame_idx,
+                 site_material_frames=n)
     return
+
+
+def plot_generalized_coords(helix: Helix):
+    plt.figure()
+    twist = helix.q[::3]
+    bend1 = helix.q[1::3]
+    bend2 = helix.q[2::3]
+    i = np.arange(0, helix.n_sites)
+    plt.plot(i, twist, label="Twist")
+    plt.plot(i, bend1, label="Bend 1")
+    plt.plot(i, bend2, label="Bend 2")
+    plt.legend()
+    plt.show()
 
 
 def main():
     # Import rod
-    import_pos, import_theta = RodGenerator.from_obj(file_path="../../blender/sarah_1.obj", scale=10)
+    import_pos, import_theta = RodGenerator.from_obj(file_path="../../blender/sarah_1.obj", scale=9.75)
     import_bishop_frame = RodUtil.compute_bishop_frames(pos=import_pos)
     import_material_frame = RodUtil.compute_material_frames(theta=import_theta, bishop_frame=import_bishop_frame)
 
     n_pts = import_pos.shape[0]
-    # Stiffness, mass constants. Revisit this
-    rhoS = 0.05
-    g = 9.81 * 1e-3
     # Drawing parameters
     point_radii = 0.1 * np.ones(n_pts)
     ax1_radii = 0.2 * np.ones(n_pts)
@@ -69,20 +83,26 @@ def main():
     helix = RodHelixConverter.rod_to_helix(import_pos, import_theta)
     create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=1)
     print("Frame 1: Helix Target")
+    plot_generalized_coords(helix)
 
     # Back to DER (target)
-    target_pos, target_theta = RodHelixConverter.helix_to_rod(helix)
-    target_bishop_frame = RodUtil.compute_bishop_frames(pos=target_pos)
-    target_material_frame = RodUtil.compute_material_frames(theta=target_theta, bishop_frame=target_bishop_frame)
-    create_frame(pos=target_pos, material_frame=target_material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+    pos_target, theta_target = RodHelixConverter.helix_to_rod(helix)
+    target_bishop_frame = RodUtil.compute_bishop_frames(pos=pos_target)
+    target_material_frame = RodUtil.compute_material_frames(theta=theta_target, bishop_frame=target_bishop_frame)
+    create_frame(pos=pos_target, material_frame=target_material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                  ax2_radii=ax2_radii, point_style=point_style, frame_idx=2)
     print("Frame 2: DER Target")
 
+    # Stiffness, mass constants. Revisit this
+    mass = np.ones(n_pts) * 1.0
+    rhoS = np.sum(mass) / helix.L
+    g = 9.81 * 1e-3
+
     # Compute the rest shape
     K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-    B = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
+    B_gen = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
     q_target = helix.q.copy()
-    q_rest = q_target[3:] - K_inv @ B
+    q_rest = q_target[3:] - K_inv @ B_gen
     q_rest = np.concatenate([q_target[:3], q_rest])
 
     # Update helix to have rest shape
@@ -90,6 +110,8 @@ def main():
     helix.q = q_rest
     create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=3)
     print("Frame 3: Helix rest shape")
+
+    plot_generalized_coords(helix)
 
     # Convert back to DER for simulation
     rest_pos, rest_theta = RodHelixConverter.helix_to_rod(helix)
@@ -100,27 +122,26 @@ def main():
     print("Frame 4: DER rest shape")
 
     # Simulate [for now, set current shape as target shape]
-    pos, theta = target_pos, target_theta
+    # pos, theta = pos_target, theta_target
+    pos, theta = rest_pos, rest_theta
     n_edges = import_theta.shape[0]
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
         B[i, 0, 0] = 1.0
         B[i, 1, 1] = 1.0
-    mass = np.ones(n_pts)
 
     # Twisting stiffness
-    beta = 0.0
+    beta = 1.0
     k = 0.0
-    g = 9.81 * 1e-3
 
     # Simulation parameters (damping for integration, time step, and number of XPBD steps)
-    damping = 0.2
-    dt = 0.04
+    damping = 0.1
+    dt = 0.1
     xpbd_steps = 10
     frozen_pos_indices = np.array([0])
     frozen_theta_indices = np.array([0])
 
-    energies = [Twist(), Bend(), BendTwist()]
+    energies = [Twist(), Bend(), BendTwist(), Gravity()]
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
               dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
               frozen_theta_indices=frozen_theta_indices)
@@ -128,6 +149,32 @@ def main():
 
     sim.update_analytics(pos, theta)
     der_energy = sim.analytics.potential_energy
+    #
+    # d_q_twist = q_target[::3] - q_rest[::3]
+    # d_twist_theta = (theta_target[1:] - theta_target[:-1]) - (rest_theta[1:] - rest_theta[:-1])
+    # # print(0.5 * d_q_twist)
+    # # print(d_twist_theta)
+    # print(np.linalg.norm(np.mean(helix.s[1:] - helix.s[:-1]) * d_q_twist), np.linalg.norm(d_twist_theta))
+    #
+    # print("DER ENERGY:", der_energy)
+    # EI = np.ones(3 * helix.n_sites)
+    # EI[::3] = 1.0
+    # helix.EI = EI
+    # K = HelixUtil.compute_pointwise_stiffness_matrix(helix)
+    # q_min_q_rest = (q_target - q_rest)[3:]
+    # print("HELIX ENERGY:", 0.5 * q_min_q_rest.T @ (K @ q_min_q_rest))
+    # print(helix.s[1:] - helix.s[:-1])
+    # print(sim.init_state.l_bar)
+    # quit()
+
+    save_freq = 10
+    progress = tqdm(range(5 * save_freq, 10000))
+    for i in progress:
+        if i % save_freq == 0:
+            create_frame(pos=pos, material_frame=sim.state.material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+                         ax2_radii=ax2_radii, point_style=point_style, frame_idx=i // save_freq)
+            progress.set_description(f"Frame {i // save_freq}")
+        pos, theta = sim.step(pos=pos, theta=theta)
 
 
 if __name__ == "__main__":
