@@ -62,7 +62,8 @@ class RotationUtil:
     def interpolate_rotation(R, t):
         """ Interpolate between identity and rotation matrix R using parameter t. """
         # Convert rotation matrix to axis-angle representation
-        theta = np.arccos((np.trace(R) - 1) / 2)
+        R_trace = min(3, np.trace(R))
+        theta = np.arccos((R_trace - 1) / 2)
         if np.abs(theta) < 1e-10:
             return np.eye(3)
 
