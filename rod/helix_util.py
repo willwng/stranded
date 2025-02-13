@@ -170,7 +170,7 @@ class HelixUtil:
         # Each node is given a random potential
         mag = 1e-2
         potential_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
-        return np.sum(potential_c[:, 2] * r[:, 2])
+        return np.sum(potential_c * r)
 
     @staticmethod
     def compute_random_force(r: np.ndarray, seed: int) -> np.ndarray:
@@ -180,6 +180,4 @@ class HelixUtil:
         rng = np.random.RandomState(seed)
         mag = 1e-2
         force_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
-        force_c[:, 0] = 0.0
-        force_c[:, 1] = 0.0
         return force_c
