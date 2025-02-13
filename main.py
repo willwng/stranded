@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -25,11 +26,15 @@ def create_frame(pos: np.ndarray,
                  point_style: list[str],
                  frame_idx: int,
                  site_material_frames: np.ndarray = None,
+                 forces: np.ndarray = None,
+                 output_file: str = None,
                  draw_arrows: bool = False):
+    output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.strand_to_obj(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                              ax2_radii=ax2_radii, point_style=point_style,
-                             output_file=f"output/obj/obj_{frame_idx}.obj",
+                             output_file=output_file,
                              site_material_frames=site_material_frames,
+                             forces=forces,
                              draw_arrows=draw_arrows)
     return
 
@@ -66,8 +71,12 @@ def plot_generalized_coords(helix: Helix):
 
 def main():
     seed = 1
+    output_folder = f"output/seed_{seed}"
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
     # Import rod
-    import_pos, import_theta = RodGenerator.from_obj(file_path="sarah_1.obj", scale=9.75)
+    import_pos, import_theta = RodGenerator.from_obj(file_path="../../blender/sarah_1.obj", scale=9.75)
     import_bishop_frame = RodUtil.compute_bishop_frames(pos=import_pos)
     import_material_frame = RodUtil.compute_material_frames(theta=import_theta, bishop_frame=import_bishop_frame)
 
@@ -89,7 +98,6 @@ def main():
     print("Frame 1: Helix Target")
     plot_generalized_coords(helix)
 
-
     # Back to DER (target)
     pos_target, theta_target = RodHelixConverter.helix_to_rod(helix)
     target_bishop_frame = RodUtil.compute_bishop_frames(pos=pos_target)
@@ -104,10 +112,8 @@ def main():
     g = 9.81 * 1e-3
 
     forces = HelixUtil.compute_random_force(pos_target, seed=seed) + Gravity().compute_forces(pos_target, mass, g)
-    forces = np.tile(forces[:, np.newaxis, :], (1, 2, 1))
-    print(forces)
-    create_frame(pos=pos_target, material_frame=forces, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=2, draw_arrows=True)
+    create_frame(pos=pos_target, material_frame=target_material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=2, draw_arrows=True, forces=forces)
 
     # Compute the rest shape
     K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
@@ -166,10 +172,31 @@ def main():
             progress.set_description(f"Frame {i // save_freq}")
         pos, theta = sim.step(pos=pos, theta=theta)
 
+    final_bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
+    final_material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=final_bishop_frame)
+
+    # Save rest + final shape
+    create_frame(pos=rest_pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=0,
+                 output_file=f"{output_folder}/rest.obj")
+    create_frame(pos=pos_target, material_frame=target_material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=0, draw_arrows=True, forces=forces,
+                 output_file=f"{output_folder}/target.obj")
+    create_frame(pos=pos, material_frame=final_material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=0,
+                 output_file=f"{output_folder}/final.obj")
 
     # Save final pos to npy
-    np.save("output/final_pos.npy", pos)
+    np.save(f"{output_folder}/init_pos.npy", rest_pos)
+    np.save(f"{output_folder}/init_theta.npy", rest_theta)
+    np.save(f"{output_folder}/forces.npy", forces)
+    np.save(f"{output_folder}/final_pos.npy", pos)
+    np.save(f"{output_folder}/final_theta.npy", theta)
 
+    # Compute L2 distance with target shape
+    dis = np.linalg.norm(pos - pos_target)
+    with open(f"{output_folder}/output.txt", 'w') as f:
+        f.write(f"distance: {dis}")
 
 
 if __name__ == "__main__":
