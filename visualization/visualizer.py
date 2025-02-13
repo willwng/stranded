@@ -139,22 +139,15 @@ class Visualizer:
 
                 if not draw_arrows:
                     continue
-                # Draw arrows corresponding to the material frame
-                arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=a_dir,
-                                                                     length=1.0, radius=0.02)
-                for v in arrow_vertices:
-                    f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-                for face in arrow_faces:
-                    f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
-                vertex_offset += len(arrow_vertices)
-                arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=b_dir,
-                                                                   length=1.0, radius=0.02)
+                for d in [a_dir, b_dir]:
+                    # Draw arrows corresponding to the material frame
+                    arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=d,
+                                                                         length=1.0, radius=0.02)
+                    for v in arrow_vertices:
+                        f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+                    for face in arrow_faces:
+                        f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
 
-                for v in arrow_vertices:
-                    f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-                for face in arrow_faces:
-                    f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-
-                vertex_offset += len(arrow_vertices)
+                    vertex_offset += len(arrow_vertices)
         return
