@@ -23,3 +23,9 @@ class Gravity(Energy):
                        rod_params: RodParams):
         grad[:, 2] += np.multiply(rod_params.mass, rod_params.g)
         return grad
+
+    @staticmethod
+    def compute_forces(pos: np.ndarray, mass: np.ndarray, g: float):
+        forces = np.zeros_like(pos)
+        forces[:, 2] = -mass * g
+        return forces

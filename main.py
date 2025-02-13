@@ -97,16 +97,16 @@ def main():
                  ax2_radii=ax2_radii, point_style=point_style, frame_idx=2)
     print("Frame 2: DER Target")
 
-    force = HelixUtil.compute_random_force(pos_target, seed=0)
-    force = np.tile(force[:, np.newaxis, :], (1, 2, 1))
-    print(force)
-    create_frame(pos=pos_target, material_frame=force, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=2, draw_arrows=True)
-
     # Stiffness, mass constants. Revisit this
     mass = np.ones(n_pts) * 1.0
     rhoS = np.sum(mass) / helix.L
     g = 9.81 * 1e-3
+
+    forces = HelixUtil.compute_random_force(pos_target, seed=0) + Gravity().compute_forces(pos_target, mass, g)
+    forces = np.tile(forces[:, np.newaxis, :], (1, 2, 1))
+    print(forces)
+    create_frame(pos=pos_target, material_frame=forces, point_radii=point_radii, ax1_radii=ax1_radii,
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=2, draw_arrows=True)
 
     # Compute the rest shape
     K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
@@ -145,11 +145,11 @@ def main():
     k = 0.0
 
     # Simulation parameters (damping for integration, time step, and number of XPBD steps)
-    damping = 0.1
+    damping = 0.05
     dt = 0.1
     xpbd_steps = 10
-    frozen_pos_indices = np.array([0])
-    frozen_theta_indices = np.array([0])
+    frozen_pos_indices = np.array([0], dtype=int)
+    frozen_theta_indices = np.array([], dtype=int)
 
     energies = [Twist(), Bend(), BendTwist(), Gravity(), RandomForce(seed=0)]
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
