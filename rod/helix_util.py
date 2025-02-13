@@ -126,7 +126,7 @@ class HelixUtil:
         return float(0.5 * q_min_q0.T @ (K @ q_min_q0))
 
     @staticmethod
-    def compute_gravity_potential_pos(helix: Helix, r: np.ndarray, g: float, rhoS: float) -> float:
+    def compute_gen_potential_pos(helix: Helix, r: np.ndarray, g: float, rhoS: float, seed: int) -> float:
         """
         Naive implementation of the gravitational potential energy
         """
@@ -134,10 +134,10 @@ class HelixUtil:
         r_com = 0.5 * (r[1:] + r[:-1])
         l = helix.s[1:] - helix.s[:-1]
         mass = rhoS * l
-        return g * np.sum(mass * r_com[:, 2]) + HelixUtil.compute_random_potential(r_com, seed=0)
+        return g * np.sum(mass * r_com[:, 2]) + HelixUtil.compute_random_potential(r_com, seed=seed)
 
     @staticmethod
-    def compute_gen_gravity_force(helix: Helix, g: float, rhoS: float) -> np.ndarray:
+    def compute_gen_force(helix: Helix, g: float, rhoS: float, seed: int) -> np.ndarray:
         """
         Computes the generalized gravity force using numerical differentiation
         """
@@ -150,13 +150,13 @@ class HelixUtil:
             q_plus[i] += eps
             helix.q = np.concatenate([helix.q[:3], q_plus])
             r_plus, _ = HelixUtil.propagate(helix)
-            U_g_plus = HelixUtil.compute_gravity_potential_pos(helix, r_plus, g, rhoS)
+            U_g_plus = HelixUtil.compute_gen_potential_pos(helix, r_plus, g, rhoS, seed)
 
             q_minus = q_free.copy()
             q_minus[i] -= eps
             helix.q = np.concatenate([helix.q[:3], q_minus])
             r_minus, _ = HelixUtil.propagate(helix)
-            U_g_minus = HelixUtil.compute_gravity_potential_pos(helix, r_minus, g, rhoS)
+            U_g_minus = HelixUtil.compute_gen_potential_pos(helix, r_minus, g, rhoS, seed)
             # Finite difference
             grad[i] = (U_g_plus - U_g_minus) / (2 * eps)
         return -grad

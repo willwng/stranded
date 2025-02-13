@@ -65,6 +65,7 @@ def plot_generalized_coords(helix: Helix):
 
 
 def main():
+    seed = 1
     # Import rod
     import_pos, import_theta = RodGenerator.from_obj(file_path="sarah_1.obj", scale=9.75)
     import_bishop_frame = RodUtil.compute_bishop_frames(pos=import_pos)
@@ -102,7 +103,7 @@ def main():
     rhoS = np.sum(mass) / helix.L
     g = 9.81 * 1e-3
 
-    forces = HelixUtil.compute_random_force(pos_target, seed=0) + Gravity().compute_forces(pos_target, mass, g)
+    forces = HelixUtil.compute_random_force(pos_target, seed=seed) + Gravity().compute_forces(pos_target, mass, g)
     forces = np.tile(forces[:, np.newaxis, :], (1, 2, 1))
     print(forces)
     create_frame(pos=pos_target, material_frame=forces, point_radii=point_radii, ax1_radii=ax1_radii,
@@ -110,7 +111,7 @@ def main():
 
     # Compute the rest shape
     K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-    B_gen = HelixUtil.compute_gen_gravity_force(helix, g=g, rhoS=rhoS)
+    B_gen = HelixUtil.compute_gen_force(helix, g=g, rhoS=rhoS, seed=seed)
     q_target = helix.q.copy()
     q_rest = q_target[3:] - K_inv @ B_gen
     q_rest = np.concatenate([q_target[:3], q_rest])
@@ -151,7 +152,7 @@ def main():
     frozen_pos_indices = np.array([0], dtype=int)
     frozen_theta_indices = np.array([], dtype=int)
 
-    energies = [Twist(), Bend(), BendTwist(), Gravity(), RandomForce(seed=0)]
+    energies = [Twist(), Bend(), BendTwist(), Gravity(), RandomForce(seed=seed)]
     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
               dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
               frozen_theta_indices=frozen_theta_indices)
