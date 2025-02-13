@@ -134,7 +134,7 @@ class HelixUtil:
         r_com = 0.5 * (r[1:] + r[:-1])
         l = helix.s[1:] - helix.s[:-1]
         mass = rhoS * l
-        return g * np.sum(mass * r_com[:, 2])
+        return g * np.sum(mass * r_com[:, 2]) + HelixUtil.compute_random_potential(r_com, seed=0)
 
     @staticmethod
     def compute_gen_gravity_force(helix: Helix, g: float, rhoS: float) -> np.ndarray:
@@ -160,3 +160,24 @@ class HelixUtil:
             # Finite difference
             grad[i] = (U_g_plus - U_g_minus) / (2 * eps)
         return -grad
+
+    @staticmethod
+    def compute_random_potential(r: np.ndarray, seed: int) -> float:
+        """
+        Computes a random potential (constant for given seed)
+        """
+        rng = np.random.RandomState(seed)
+        # Each node is given a random potential
+        mag = 0.02
+        potential_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
+        return np.sum(potential_c * r)
+
+    @staticmethod
+    def compute_random_force(r: np.ndarray, seed: int) -> np.ndarray:
+        """
+        Computes a random, conservative force (by taking the gradient of the random potential)
+        """
+        rng = np.random.RandomState(seed)
+        mag = 0.02
+        force_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
+        return force_c
