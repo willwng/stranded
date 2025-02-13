@@ -168,7 +168,7 @@ class HelixUtil:
         """
         rng = np.random.RandomState(seed)
         # Each node is given a random potential
-        mag = 0.02
+        mag = 0.01
         potential_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
         return np.sum(potential_c * r)
 
@@ -178,6 +178,6 @@ class HelixUtil:
         Computes a random, conservative force (by taking the gradient of the random potential)
         """
         rng = np.random.RandomState(seed)
-        mag = 0.02
+        mag = 0.01
         force_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
         return force_c
