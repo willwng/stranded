@@ -83,7 +83,7 @@ def main():
         os.makedirs(output_folder)
 
     # Import rod
-    import_pos, import_theta = RodGenerator.from_obj(file_path="../../blender/sarah_1.obj", scale=9.75)
+    import_pos, import_theta = RodGenerator.from_obj(file_path="sarah_1.obj", scale=9.75)
     import_bishop_frame = RodUtil.compute_bishop_frames(pos=import_pos)
     import_material_frame = RodUtil.compute_material_frames(theta=import_theta, bishop_frame=import_bishop_frame)
 
@@ -211,11 +211,11 @@ def expt():
     L = 30
     s = np.linspace(0, L, n_pts)
     # Generalized coordinates
-    curl_radius_mean, curl_radius_std = 0.4, 0.1  # 4mm +/- 1mm
+    curl_radius_mean, curl_radius_std = 0.4, 0.0  # 4mm +/- 1mm
     curl_radius = np.random.normal(curl_radius_mean, curl_radius_std, n_pts)
     delta_h = 1.0
     k_1 = 1 / curl_radius
-    k_2 = np.random.normal(0, 0.1, n_pts)
+    k_2 = np.random.normal(0, 0.0, n_pts)
     tau = delta_h / (2 * np.pi * curl_radius_mean ** 2) * np.ones(n_pts)
 
     # Randomize twist
@@ -231,21 +231,23 @@ def expt():
     n0 = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
     # Stiffness, mass constants. Revisit this
     EI = np.ones(3 * n_pts) * 1
-    rhoS = 0.05
     g = 9.81 * 1e-3
     helix = Helix(q=q, q0=q.copy(), n_sites=n_pts, s=s, L=L, r0=r0, n0=n0, EI=EI)
+    #
+    # helix = HelixUtil.increase_resolution(helix)
 
     plot_generalized_coords(helix)
 
     # Drawing parameters
-    point_radii = 0.05 * np.ones(n_pts)
-    ax1_radii = 0.05 * np.ones(n_pts)
-    ax2_radii = 0.05 * np.ones(n_pts)
-    point_style = ["sphere"] * n_pts
+    point_radii = 0.05 * np.ones(2 * helix.n_sites)
+    ax1_radii = 0.05 * np.ones(2 * helix.n_sites)
+    ax2_radii = 0.05 * np.ones(2 * helix.n_sites)
+    point_style = ["sphere"] * helix.n_sites * 2
     # create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=0)
 
     pos, theta = RodHelixConverter.helix_to_rod(helix)
 
+    # Align the helix to point upwards
     centerline = pos[-1] - pos[0]
     centerline = centerline / np.linalg.norm(centerline)
     z_axis = np.array([0, 0, 1])
@@ -254,20 +256,26 @@ def expt():
     rot_angle = np.arccos(np.dot(centerline, z_axis))
     P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
     P_i.normalize()
-    for i in range(pos.shape[0]):
-        pos[i] = P_i.rotate_vec(pos[i])
+    # for i in range(pos.shape[0]):
+        # pos[i] = P_i.rotate_vec(pos[i])
+    helix.n0 = P_i.rotate_vec(helix.n0)
+    pos, theta = RodHelixConverter.helix_to_rod(helix)
 
     bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
     material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                  ax2_radii=ax2_radii, point_style=point_style, frame_idx=0, draw_arrows=True)
 
+    helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
+    create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=1)
+    quit()
+
     # Reverse pos and theta
-    pos = pos[::-1]
-    theta = theta[::-1]
+    # pos = pos[::-1]
+    # theta = theta[::-1]
 
     # -- simulate
-    mass = np.ones(n_pts) * 1.0
+    mass = np.ones(helix.n_sites) * 1.0
     n_edges = theta.shape[0]
     B = np.zeros((n_edges, 2, 2))
     for i in range(n_edges):
@@ -280,9 +288,9 @@ def expt():
 
     # Simulation parameters (damping for integration, time step, and number of XPBD steps)
     damping = 0.1
-    dt = 0.04
+    dt = 0.1
     xpbd_steps = 10
-    frozen_pos_indices = np.array([-1, -2, -3], dtype=int)
+    frozen_pos_indices = np.array([0, 1, 2], dtype=int)
     frozen_theta_indices = np.array([], dtype=int)
 
     energies = [Twist(), Bend(), BendTwist(), Gravity()]
@@ -294,8 +302,14 @@ def expt():
     progress = tqdm(range(1 * save_freq, 10000))
     for i in progress:
         if i % save_freq == 0:
-            create_frame(pos=pos, material_frame=sim.state.material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
+            # helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
+            # helix_draw = HelixUtil.increase_resolution(helix_draw)
+            # pos_draw, theta_draw = RodHelixConverter.helix_to_rod(helix_draw)
+            # bishop_frame_draw = RodUtil.compute_bishop_frames(pos=pos_draw)
+            # material_frame_draw = RodUtil.compute_material_frames(theta=theta_draw, bishop_frame=bishop_frame_draw)
+            create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                          ax2_radii=ax2_radii, point_style=point_style, frame_idx=i // save_freq)
+            # create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=i // save_freq)
             progress.set_description(f"Frame {i // save_freq}")
         pos, theta = sim.step(pos=pos, theta=theta)
     return
