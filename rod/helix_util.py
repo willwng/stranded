@@ -181,3 +181,46 @@ class HelixUtil:
         mag = 1e-2
         force_c = rng.rand(r.shape[0], 3) * (2 * mag) - mag
         return force_c
+
+    @staticmethod
+    def smoothen(helix: Helix, k: int) -> np.ndarray:
+        """
+        Smoothen the helix by averaging the twist and curvature over a window of size k
+        """
+        q = helix.q.reshape(-1, 3)
+        tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
+        tau_smooth, kappa1_smooth, kappa2_smooth = tau.copy(), kappa1.copy(), kappa2.copy()
+        for i in range(k, helix.n_sites - k):
+            tau_smooth[i] = np.mean(tau[i - k:i + k])
+            kappa1_smooth[i] = np.mean(kappa1[i - k:i + k])
+            kappa2_smooth[i] = np.mean(kappa2[i - k:i + k])
+        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel()
+
+    @staticmethod
+    def increase_resolution(helix: Helix) -> Helix:
+        """
+        Increase the resolution of the helix by linear interpolation
+        """
+        n_sites = helix.n_sites
+        q = helix.q.reshape(-1, 3)
+
+        tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
+        tau_inc, kappa1_inc, kappa2_inc = np.zeros(2 * n_sites), np.zeros(2 * n_sites), np.zeros(2 * n_sites)
+        for i in range(2 * n_sites):
+            if i % 2 == 0:
+                tau_inc[i] = tau[i // 2]
+                kappa1_inc[i] = kappa1[i // 2]
+                kappa2_inc[i] = kappa2[i // 2]
+            else:
+                tau_inc[i] = 0.5 * (tau[i // 2] + tau[i // 2 - 1])
+                kappa1_inc[i] = 0.5 * (kappa1[i // 2] + kappa1[i // 2 - 1])
+                kappa2_inc[i] = 0.5 * (kappa2[i // 2] + kappa2[i // 2 - 1])
+
+        q_increased = np.stack([tau_inc, kappa1_inc, kappa2_inc], axis=1).ravel()
+        # Repeat
+        EI = np.zeros(3 * 2 * n_sites)
+        EI[::2] = helix.EI
+        EI[1::2] = helix.EI
+
+        return Helix(r0=helix.r0, n0=helix.n0, q=q_increased, EI=EI, s=np.linspace(0, helix.L, 2 * n_sites), L=helix.L,
+                     n_sites=2 * n_sites, q0=q_increased.copy())
