@@ -202,25 +202,26 @@ class HelixUtil:
         Increase the resolution of the helix by linear interpolation
         """
         n_sites = helix.n_sites
+        n_new_sites = 2 * n_sites - 1
         q = helix.q.reshape(-1, 3)
 
         tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
-        tau_inc, kappa1_inc, kappa2_inc = np.zeros(2 * n_sites), np.zeros(2 * n_sites), np.zeros(2 * n_sites)
-        for i in range(2 * n_sites):
+        tau_inc, kappa1_inc, kappa2_inc = np.zeros(n_new_sites), np.zeros(n_new_sites), np.zeros(n_new_sites)
+        s_new = np.zeros(n_new_sites)
+        for i in range(n_new_sites):
+            tau_inc[i] = tau[i // 2]
+            kappa1_inc[i] = kappa1[i // 2]
+            kappa2_inc[i] = kappa2[i // 2]
             if i % 2 == 0:
-                tau_inc[i] = tau[i // 2]
-                kappa1_inc[i] = kappa1[i // 2]
-                kappa2_inc[i] = kappa2[i // 2]
+                s_new[i] = helix.s[i // 2]
             else:
-                tau_inc[i] = 0.5 * (tau[i // 2] + tau[i // 2 - 1])
-                kappa1_inc[i] = 0.5 * (kappa1[i // 2] + kappa1[i // 2 - 1])
-                kappa2_inc[i] = 0.5 * (kappa2[i // 2] + kappa2[i // 2 - 1])
+                s_new[i] = 0.5 * (helix.s[i // 2] + helix.s[i // 2 + 1])
 
         q_increased = np.stack([tau_inc, kappa1_inc, kappa2_inc], axis=1).ravel()
         # Repeat
-        EI = np.zeros(3 * 2 * n_sites)
-        EI[::2] = helix.EI
-        EI[1::2] = helix.EI
+        EI = np.zeros(3 * n_new_sites)
+        EI[::2] = helix.EI[:-1]
+        EI[1::2] = helix.EI[1:-1]
 
-        return Helix(r0=helix.r0, n0=helix.n0, q=q_increased, EI=EI, s=np.linspace(0, helix.L, 2 * n_sites), L=helix.L,
-                     n_sites=2 * n_sites, q0=q_increased.copy())
+        return Helix(r0=helix.r0, n0=helix.n0, q=q_increased, EI=EI, s=s_new, L=helix.L,
+                     n_sites=n_new_sites, q0=q_increased.copy())

@@ -215,7 +215,7 @@ def expt():
     curl_radius = np.random.normal(curl_radius_mean, curl_radius_std, n_pts)
     delta_h = 1.0
     k_1 = 1 / curl_radius
-    k_2 = np.random.normal(0, 0.0, n_pts)
+    k_2 = np.random.normal(0, 0.2, n_pts)
     tau = delta_h / (2 * np.pi * curl_radius_mean ** 2) * np.ones(n_pts)
 
     # Randomize twist
@@ -233,17 +233,18 @@ def expt():
     EI = np.ones(3 * n_pts) * 1
     g = 9.81 * 1e-3
     helix = Helix(q=q, q0=q.copy(), n_sites=n_pts, s=s, L=L, r0=r0, n0=n0, EI=EI)
+    # print(helix.q)
+    qtruth = q.copy()
     #
     # helix = HelixUtil.increase_resolution(helix)
 
-    plot_generalized_coords(helix)
+    # plot_generalized_coords(helix)
 
     # Drawing parameters
-    point_radii = 0.05 * np.ones(2 * helix.n_sites)
-    ax1_radii = 0.05 * np.ones(2 * helix.n_sites)
-    ax2_radii = 0.05 * np.ones(2 * helix.n_sites)
-    point_style = ["sphere"] * helix.n_sites * 2
-    # create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=0)
+    point_radii = 0.05 * np.ones(8 * helix.n_sites)
+    ax1_radii = 0.05 * np.ones(8 * helix.n_sites)
+    ax2_radii = 0.05 * np.ones(8 * helix.n_sites)
+    point_style = ["sphere"] * helix.n_sites * 8
 
     pos, theta = RodHelixConverter.helix_to_rod(helix)
 
@@ -259,16 +260,21 @@ def expt():
     # for i in range(pos.shape[0]):
         # pos[i] = P_i.rotate_vec(pos[i])
     helix.n0 = P_i.rotate_vec(helix.n0)
-    pos, theta = RodHelixConverter.helix_to_rod(helix)
 
+    create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=0)
+
+    # Convert to DER
+    pos, theta = RodHelixConverter.helix_to_rod(helix)
     bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
     material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=0, draw_arrows=True)
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=1, draw_arrows=True)
 
-    helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
-    create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=1)
-    quit()
+    helix_draw = RodHelixConverter.rod_to_helix_pos(pos, n0=helix.n0)
+    # helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
+    create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=2)
+    plot_generalized_coords(helix)
+    plot_generalized_coords(helix_draw)
 
     # Reverse pos and theta
     # pos = pos[::-1]
@@ -299,11 +305,15 @@ def expt():
               frozen_theta_indices=frozen_theta_indices)
     sim.define_rest_state(pos, theta)
     save_freq = 10
-    progress = tqdm(range(1 * save_freq, 10000))
+    progress = tqdm(range(3 * save_freq, 10000))
     for i in progress:
         if i % save_freq == 0:
-            # helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
+            # helix_draw = RodHelixConverter.rod_to_helix_pos(pos, n0=helix.n0)
+            # create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=i // save_freq)
+            # plot_generalized_coords(helix_draw)
             # helix_draw = HelixUtil.increase_resolution(helix_draw)
+            # helix_draw = HelixUtil.increase_resolution(helix_draw)
+            # plot_generalized_coords(helix_draw)
             # pos_draw, theta_draw = RodHelixConverter.helix_to_rod(helix_draw)
             # bishop_frame_draw = RodUtil.compute_bishop_frames(pos=pos_draw)
             # material_frame_draw = RodUtil.compute_material_frames(theta=theta_draw, bishop_frame=bishop_frame_draw)
