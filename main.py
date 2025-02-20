@@ -25,17 +25,31 @@ def create_frame(pos: np.ndarray,
                  ax2_radii: np.ndarray,
                  point_style: list[str],
                  frame_idx: int,
-                 site_material_frames: np.ndarray = None,
-                 forces: np.ndarray = None,
-                 output_file: str = None,
-                 draw_arrows: bool = False):
+                 output_file: str = None):
     output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.strand_to_obj(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                              ax2_radii=ax2_radii, point_style=point_style,
-                             output_file=output_file,
-                             site_material_frames=site_material_frames,
-                             forces=forces,
-                             draw_arrows=draw_arrows)
+                             output_file=output_file)
+    return
+
+
+def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None):
+    output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
+    Visualizer.clear_output_file(output_file)
+    vertex_offset = 1
+    for strand in strands:
+        pos = strand[:, :3]
+        vertex_offset = Visualizer.to_simple_obj(pos=pos, output_file=output_file, init_offset=vertex_offset)
+    return
+
+
+def helices_to_one_obj(helices: list[Helix], frame_idx: int, output_file: str = None):
+    output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
+    Visualizer.clear_output_file(output_file)
+    vertex_offset = 1
+    for helix in helices:
+        r, n = HelixUtil.propagate(helix)
+        vertex_offset = Visualizer.to_simple_obj(pos=r, output_file=output_file, init_offset=vertex_offset)
     return
 
 
@@ -242,7 +256,7 @@ def expt():
 
     # Drawing parameters
     point_radii = 0.05 * np.ones(8 * helix.n_sites)
-    ax1_radii = 0.05 * np.ones(8 * helix.n_sites)
+    ax1_radii = 0.03 * np.ones(8 * helix.n_sites)
     ax2_radii = 0.05 * np.ones(8 * helix.n_sites)
     point_style = ["sphere"] * helix.n_sites * 8
 
@@ -258,7 +272,7 @@ def expt():
     P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
     P_i.normalize()
     # for i in range(pos.shape[0]):
-        # pos[i] = P_i.rotate_vec(pos[i])
+    # pos[i] = P_i.rotate_vec(pos[i])
     helix.n0 = P_i.rotate_vec(helix.n0)
 
     create_frame_helix(helix, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=0)
@@ -268,14 +282,15 @@ def expt():
     bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
     material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
-                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=1, draw_arrows=True)
+                 ax2_radii=ax2_radii, point_style=point_style, frame_idx=1)
 
-    helix_draw = RodHelixConverter.rod_to_helix_pos(pos, n0=helix.n0)
+    helix_draw = RodHelixConverter.rod_to_helix_pos(pos, theta, n0=helix.n0)
     # helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
     create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=2)
     plot_generalized_coords(helix)
     plot_generalized_coords(helix_draw)
 
+    quit()
     # Reverse pos and theta
     # pos = pos[::-1]
     # theta = theta[::-1]
@@ -325,6 +340,24 @@ def expt():
     return
 
 
+def convert_to_gen():
+    centerline_data = np.load("centerline_aligned.npy")
+    scale = 200
+    strand_test = centerline_data[:50] * scale
+
+    strands_to_one_objs(strand_test, frame_idx=0)
+
+    helices = []
+    for i, strand in enumerate(strand_test):
+        pos = strand[:, :3]
+        helix = RodHelixConverter.rod_to_helix(pos, np.zeros(pos.shape[0] - 1))
+        helices.append(helix)
+        if i == 0:
+            plot_generalized_coords(helix)
+    helices_to_one_obj(helices, frame_idx=1)
+
+
 if __name__ == "__main__":
     # main()
-    expt()
+    # expt()
+    convert_to_gen()
