@@ -183,18 +183,92 @@ class HelixUtil:
         return force_c
 
     @staticmethod
-    def smoothen(helix: Helix, k: int) -> np.ndarray:
+    def smoothen(helix: Helix, k: int) -> tuple[np.ndarray, np.ndarray]:
         """
         Smoothen the helix by averaging the twist and curvature over a window of size k
         """
         q = helix.q.reshape(-1, 3)
+        s = helix.s
         tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
         tau_smooth, kappa1_smooth, kappa2_smooth = tau.copy(), kappa1.copy(), kappa2.copy()
+        s_smooth = s.copy()
         for i in range(k, helix.n_sites - k):
             tau_smooth[i] = np.mean(tau[i - k:i + k])
             kappa1_smooth[i] = np.mean(kappa1[i - k:i + k])
             kappa2_smooth[i] = np.mean(kappa2[i - k:i + k])
-        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel()
+            s_smooth[i] = np.mean(s[i - k:i + k])
+        # End points average over smaller window
+        for i in range(k):
+            tau_smooth[i] = np.mean(tau[:2 * i + 1])
+            kappa1_smooth[i] = np.mean(kappa1[:2 * i + 1])
+            kappa2_smooth[i] = np.mean(kappa2[:2 * i + 1])
+            s_smooth[i] = np.mean(s[:2 * i + 1])
+        for i in range(helix.n_sites - k, helix.n_sites):
+            tau_smooth[i] = np.mean(tau[2 * i - helix.n_sites + 1:])
+            kappa1_smooth[i] = np.mean(kappa1[2 * i - helix.n_sites + 1:])
+            kappa2_smooth[i] = np.mean(kappa2[2 * i - helix.n_sites + 1:])
+            s_smooth[i] = np.mean(s[2 * i - helix.n_sites + 1:])
+        tau_smooth[-1] = tau_smooth[-2]
+        kappa1_smooth[-1] = kappa1_smooth[-2]
+        kappa2_smooth[-1] = kappa2_smooth[-2]
+
+        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel(), s_smooth
+
+    @staticmethod
+    def create_smoothing_kernel(window_size):
+        """Create a uniform smoothing kernel of given size"""
+        return np.ones(window_size) / window_size
+
+    @staticmethod
+    def smooth_endpoints(arr, k):
+        """Smooth endpoints with variable window sizes"""
+        n = len(arr)
+        # Front endpoints
+        front_windows = [2 * i + 1 for i in range(k)]
+        front_means = np.array([arr[:w].mean() for w in front_windows])
+
+        # Back endpoints
+        back_indices = range(n - k, n)
+        back_windows = [arr[2 * i - n + 1:] for i in back_indices]
+        back_means = np.array([w.mean() for w in back_windows])
+
+        return front_means, back_means
+
+    @staticmethod
+    def smoothen2(helix: Helix, k: int):
+
+        # Reshape and extract parameters
+        q = helix.q.reshape(-1, 3)
+        s = helix.s
+        tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
+
+        # Initialize smoothed arrays
+        tau_smooth = tau.copy()
+        kappa1_smooth = kappa1.copy()
+        kappa2_smooth = kappa2.copy()
+        s_smooth = s.copy()
+
+        # Create kernel for middle section
+        kernel = HelixUtil.create_smoothing_kernel(2 * k + 1)
+
+        # Smooth middle sections using convolution
+        for arr_smooth, arr in [(tau_smooth, tau),
+                                (kappa1_smooth, kappa1),
+                                (kappa2_smooth, kappa2),
+                                (s_smooth, s)]:
+            # Smooth middle section
+            middle_smooth = np.convolve(arr, kernel, mode='valid')
+            arr_smooth[k:-k] = middle_smooth
+
+            # Smooth endpoints
+            front_means, back_means = HelixUtil.smooth_endpoints(arr, k)
+            arr_smooth[:k] = front_means
+            arr_smooth[-k:] = back_means
+
+            # Copy second-to-last value to last position
+            arr_smooth[-1] = arr_smooth[-2]
+
+        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel(), s_smooth
 
     @staticmethod
     def increase_resolution(helix: Helix) -> Helix:
