@@ -81,10 +81,9 @@ def plot_generalized_coords(helix: Helix):
     plt.plot(i, twist, label="Twist")
     plt.plot(i, bend1, label="Bend 1")
     plt.plot(i, bend2, label="Bend 2")
-    plt.xlabel("Index")
-    plt.xlim([0, helix.n_sites])
-    plt.xticks([0, 35, 70])
-    plt.yticks([-1, 0, 1])
+    # plt.xlim([0, helix.n_sites])
+    # plt.xticks([0, 35, 70])
+    # plt.yticks([-1, 0, 1])
 
     plt.legend()
     plt.show()
@@ -284,7 +283,7 @@ def expt():
     create_frame(pos=pos, material_frame=material_frame, point_radii=point_radii, ax1_radii=ax1_radii,
                  ax2_radii=ax2_radii, point_style=point_style, frame_idx=1)
 
-    helix_draw = RodHelixConverter.rod_to_helix_pos(pos, theta, n0=helix.n0)
+    helix_draw = RodHelixConverter.rod_to_helix_pos(pos, n0=helix.n0)
     # helix_draw = RodHelixConverter.rod_to_helix(pos, theta)
     create_frame_helix(helix_draw, point_radii, ax1_radii, ax2_radii, point_style, frame_idx=2)
     plot_generalized_coords(helix)
@@ -342,19 +341,33 @@ def expt():
 
 def convert_to_gen():
     centerline_data = np.load("centerline_aligned.npy")
-    scale = 200
-    strand_test = centerline_data[:50] * scale
+    # centerline_data = np.load("curl_aligned.npy")
+    strand_test = centerline_data[:]
 
     strands_to_one_objs(strand_test, frame_idx=0)
 
+    generalized_centerline_data = np.zeros_like(centerline_data)
     helices = []
-    for i, strand in enumerate(strand_test):
+    n0 = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+    progress = tqdm(range(strand_test.shape[0]))
+    for i in progress:
+        strand = strand_test[i]
         pos = strand[:, :3]
-        helix = RodHelixConverter.rod_to_helix(pos, np.zeros(pos.shape[0] - 1))
+        # helix = RodHelixConverter.rod_to_helix(pos, np.zeros(pos.shape[0] - 1))
+        # plot_generalized_coords(helix)
+        # e = pos[1:] - pos[:-1]
+        # e_lengths = np.linalg.norm(e, axis=1)
+        # scale = 1 / (np.mean(e_lengths) ** 2)
+        # print(helix.n0)
+
+        scale = 1e8
+        helix = RodHelixConverter.rod_to_helix_pos(pos, n0=n0, scale=scale)
+        # plot_generalized_coords(helix)
+        generalized_centerline_data[i] = helix.q.reshape(-1, 3)
         helices.append(helix)
-        if i == 0:
-            plot_generalized_coords(helix)
     helices_to_one_obj(helices, frame_idx=1)
+    np.save("generalized_centerline_aligned.npy", generalized_centerline_data)
+    # np.save("generalized_curl_aligned.npy", generalized_centerline_data)
 
 
 if __name__ == "__main__":
