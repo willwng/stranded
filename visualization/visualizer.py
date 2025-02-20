@@ -54,23 +54,27 @@ class Visualizer:
         return
 
     @staticmethod
-    def to_simple_obj(pos: np.ndarray, output_file: str):
+    def to_simple_obj(pos: np.ndarray, output_file: str, init_offset: int, y_up: bool = True):
+        if y_up:
+            pos = pos[:, [0, 2, 1]]
         """ OBJ output with just points and edges """
-        with open(output_file, 'w') as f:
-            # Write header
-            f.write("# Point cloud converted to OBJ\n")
-
+        with open(output_file, 'a+') as f:
             # Write vertices
+            vertex_offset = init_offset
             for i, point in enumerate(pos):
-                # Write vertex position
-                f.write(f"v {point[0]:.6f} {point[1]:.6f} {point[2]:.6f}")
-                f.write("\n")
+                f.write(f"v {point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n")
 
             # Write edges between consecutive points
-            f.write("\n# Edges (lines)\n")
             for i in range(len(pos) - 1):
-                # OBJ indices start at 1, so we add 1 to our zero-based indices
-                f.write(f"l {i + 1} {i + 2}\n")
+                f.write(f"l {i + vertex_offset} {i + 1 + vertex_offset}\n")
+
+            vertex_offset += len(pos)
+        return vertex_offset
+
+    @staticmethod
+    def clear_output_file(output_file: str):
+        with open(output_file, 'w') as f:
+            f.write("")
         return
 
     @staticmethod
@@ -81,24 +85,16 @@ class Visualizer:
                       ax2_radii: np.ndarray,
                       point_style: list[str],
                       output_file: str,
-                      y_up: bool = True,
-                      site_material_frames: np.ndarray = None,
-                      forces: np.ndarray = None,
-                      draw_arrows: bool = False):
+                      init_offset: int = 1,
+                      y_up: bool = True):
         """ OBJ output with spheres for points and cylinders for lines """
         # Objs use the convention of y-up, but our simulation uses z-up
         if y_up:
             pos = pos[:, [0, 2, 1]]
             material_frame = material_frame[:, :, [0, 2, 1]]
-            if site_material_frames is not None:
-                site_material_frames = site_material_frames[:, :, [0, 2, 1]]
-            if forces is not None:
-                forces = forces[:, [0, 2, 1]]
 
-        with open(output_file, 'w') as f:
-            f.write("# Point cloud with 3D points and lines\n")
-
-            vertex_offset = 1  # OBJ uses 1-based indexing
+        with open(output_file, 'a+') as f:
+            vertex_offset = init_offset
             # --- Begin draw points ---
             for i, point in enumerate(pos):
                 if point_style[i] == "sphere":
@@ -115,29 +111,6 @@ class Visualizer:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
                 vertex_offset += len(vertices)
 
-                if site_material_frames is not None and draw_arrows:
-                    frame = site_material_frames[i]
-                    for j in range(3):
-                        arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=point, direction=frame[j],
-                                                                           length=1.0, radius=0.02)
-                        for v in arrow_vertices:
-                            f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-                        for face in arrow_faces:
-                            f.write(
-                                f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-                        vertex_offset += len(arrow_vertices)
-
-                if forces is not None and draw_arrows:
-                    force = forces[i]
-                    arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=point, direction=force,
-                                                                       length=1.0, radius=0.02)
-                    for v in arrow_vertices:
-                        f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-                    for face in arrow_faces:
-                        f.write(
-                            f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-                    vertex_offset += len(arrow_vertices)
-
             # --- Begin draw edges ---
             for i in range(pos.shape[0] - 1):
                 start, end = pos[i], pos[i + 1]
@@ -152,18 +125,4 @@ class Visualizer:
                 for face in cyl_faces:
                     f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
                 vertex_offset += len(cyl_vertices)
-
-                if not draw_arrows:
-                    continue
-
-                # for d in [a_dir, b_dir]:
-                #     # Draw arrows corresponding to the material frame
-                #     arrow_vertices, arrow_faces = ObjUtil.create_arrow(start_point=(start + end) / 2, direction=d,
-                #                                                        length=1.0, radius=0.02)
-                #     for v in arrow_vertices:
-                #         f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-                #     for face in arrow_faces:
-                #         f.write(f"f {face[0] + vertex_offset} {face[1] + vertex_offset} {face[2] + vertex_offset}\n")
-                #
-                #     vertex_offset += len(arrow_vertices)
-        return
+        return vertex_offset

@@ -69,7 +69,7 @@ class RodHelixConverter:
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray) -> Helix:
+    def rod_to_helix_pos(pos: np.ndarray, theta: np.ndarray, n0: np.ndarray) -> Helix:
         """
         Converts a rod to a helix, ensuring the positions are preserved
         """
@@ -100,8 +100,8 @@ class RodHelixConverter:
                     n_0_par, n_0_perp = n_par[0], n_perp[0]
                     r = (r_L + n_0_par * ds + n_0_perp * np.sin(Omega_norm * ds) / Omega_norm +
                          np.cross(w, n_0_perp) * (1 - np.cos(Omega_norm * ds)) / Omega_norm)
-                f_obj = np.linalg.norm(r - pos[i]) ** 2
-                return f_obj
+                r_obj = np.linalg.norm(r - pos[i]) ** 2
+                return r_obj
 
             # Initial guess. By curvature, s must be larger than the edge length
             qs_guess = np.concatenate((q_prev, [edge_lengths[i - 1]]))
