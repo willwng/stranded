@@ -81,11 +81,11 @@ class HelixUtil:
         return K_inv
 
     @staticmethod
-    def compute_inv_pointwise_stiffness_matrix(helix: Helix) -> np.ndarray:
+    def compute_inv_pointwise_stiffness_matrix(helix: Helix) -> spmatrix:
         """ Computes the inverse of the stiffness matrix for the helix, where we want point-wise quantities
             versus integrated quantities (following DER paper) """
         l = helix.s[1:] - helix.s[:-1]
-        K_inv = np.diag(1 / (helix.EI[3:] * 2 * l.repeat(3)))
+        K_inv = diags(1 / (helix.EI[3:] * 2 * l.repeat(3)))
         return K_inv
 
     @staticmethod
@@ -134,7 +134,7 @@ class HelixUtil:
         r_com = 0.5 * (r[1:] + r[:-1])
         l = helix.s[1:] - helix.s[:-1]
         mass = rhoS * l
-        return g * np.sum(mass * r_com[:, 2]) + HelixUtil.compute_random_potential(r_com, seed=seed)
+        return g * np.sum(mass * r_com[:, 2]) # + HelixUtil.compute_random_potential(r_com, seed=seed)
 
     @staticmethod
     def compute_gen_force(helix: Helix, g: float, rhoS: float, seed: int) -> np.ndarray:
