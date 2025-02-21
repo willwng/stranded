@@ -9,6 +9,7 @@ from energies.gravity import Gravity
 from energies.random import RandomForce
 from energies.twist import Twist
 from math_util.rotation import RotationUtil, Quaternion
+from math_util.vectors import Vector
 from rod.RodHelixConverter import RodHelixConverter
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
@@ -370,7 +371,136 @@ def convert_to_gen():
     # np.save("generalized_curl_aligned.npy", generalized_centerline_data)
 
 
+def scalp():
+    # Open OBJ
+    pos, edges = [], []
+    with open("normals_one_seg.obj", 'r') as f:
+        for line in f:
+            if line[0] == 'v':
+                pos.append(list(map(float, line.split()[1:])))
+            elif line[0] == 'l':
+                edges.append(list(map(int, line.split()[1:])))
+    pos = np.array(pos)
+    edges = np.array(edges) - 1
+
+    # Convert y up and center the positions to origin
+    pos = pos[:, [0, 2, 1]]
+    pos -= np.mean(pos, axis=0)
+
+    # Create strands starts
+    start_strands = []
+    for i1, i2 in edges:
+        start_strands.append((pos[i1], pos[i2]))
+    start_strands = np.array(start_strands)
+    start_strands = start_strands[:]
+
+    # Create initial positions and material frame
+    r0 = start_strands[:, 0]
+    n0 = np.zeros((start_strands.shape[0], 3, 3))
+    tangents = start_strands[:, 1] - start_strands[:, 0]
+    for i in range(n0.shape[0]):
+        t = tangents[i]
+        u = Vector.compute_orthogonal_vec(t)
+        v = np.cross(t, u)
+        n0[i, 0] = t / np.linalg.norm(t)
+        n0[i, 1] = u / np.linalg.norm(u)
+        n0[i, 2] = v / np.linalg.norm(v)
+
+    helices = []
+    for i in range(start_strands.shape[0]):
+        n_sites = 64  # Including index 0
+        L = .1
+        s = np.linspace(0, L, n_sites)
+        k_1 = np.zeros(n_sites)
+        k_2 = np.zeros(n_sites)
+        tau = np.zeros(n_sites)
+        q = np.stack([tau, k_1, k_2], axis=1).ravel()
+        helix = Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0[i], n0=n0[i], EI=np.ones(3 * n_sites))
+        helices.append(helix)
+
+    helices_to_one_obj(helices, frame_idx=0)
+
+    helices = []
+    for i in range(start_strands.shape[0]):
+        n_sites = 64  # Including index 0
+        L = .1
+        s = np.linspace(0, L, n_sites)
+        # Generalized coordinates
+        curl_radius_mean, curl_radius_std = 0.003, 0.0  # 4mm +/- 1mm
+        curl_radius = np.random.normal(curl_radius_mean, curl_radius_std, n_sites)
+        delta_h = 0.01
+        k_1 = 1 / curl_radius
+        k_2 = np.random.normal(0, 0.2, n_sites) * 0
+        tau = delta_h / (2 * np.pi * curl_radius_mean ** 2) * np.ones(n_sites)
+        q = np.stack([tau, k_1, k_2], axis=1).ravel()
+        helix = Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0[i], n0=n0[i], EI=np.ones(3 * n_sites))
+
+        # Align with the given tangent
+        r, _ = HelixUtil.propagate(helix)
+        centerline = r[-1] - r[0]
+        centerline = centerline / np.linalg.norm(centerline)
+        hair_axis = n0[i, 0]
+        rot_axis = np.cross(centerline, hair_axis)
+        rot_axis = rot_axis / np.linalg.norm(rot_axis)
+        rot_angle = np.arccos(np.dot(centerline, hair_axis))
+        P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
+        P_i.normalize()
+        helix.n0 = P_i.rotate_vec(helix.n0)
+
+        helices.append(helix)
+    helices_to_one_obj(helices, frame_idx=1)
+
+    # Convert to DER
+    sims = []
+    poses, thetas = [], []
+    for helix in helices:
+        pos, theta = RodHelixConverter.helix_to_rod(helix)
+        pos *= 600
+        mass = np.ones(pos.shape[0]) * 1.0
+        n_edges = theta.shape[0]
+        B = np.zeros((n_edges, 2, 2))
+        for i in range(n_edges):
+            B[i, 0, 0] = 1.0
+            B[i, 1, 1] = 1.0
+
+        # Twisting stiffness
+        beta = 1.0
+        k = 0.0
+        g = 9.81 * 1e-3
+
+        # Simulation parameters (damping for integration, time step, and number of XPBD steps)
+        damping = 0.1
+        dt = 0.04
+        xpbd_steps = 10
+        frozen_pos_indices = np.array([0, 1, 2], dtype=int)
+        frozen_theta_indices = np.array([], dtype=int)
+
+        energies = [Twist(), Bend(), BendTwist(), Gravity()]
+        sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
+                  dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
+                  frozen_theta_indices=frozen_theta_indices)
+        sims.append(sim)
+        poses.append(pos)
+        thetas.append(theta)
+
+    poses, thetas = np.array(poses), np.array(thetas)
+    save_freq = 10
+    progress = tqdm(range(2, 10000))
+    for i in progress:
+        for j in range(len(sims)):
+            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+            poses[j] = pos
+            thetas[j] = theta
+        # Draw
+        if i % save_freq == 0:
+            strands_to_one_objs(poses, frame_idx=i // save_freq)
+            progress.set_description(f"Frame {i // save_freq}")
+
+    return
+
+
 if __name__ == "__main__":
     # main()
     # expt()
-    convert_to_gen()
+    # convert_to_gen()
+    scalp()
