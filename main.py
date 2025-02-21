@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import concurrent.futures
 
 from energies.bend import Bend
 from energies.bend_twist import BendTwist
@@ -392,7 +393,7 @@ def scalp():
     for i1, i2 in edges:
         start_strands.append((pos[i1], pos[i2]))
     start_strands = np.array(start_strands)
-    start_strands = start_strands[:]
+    start_strands = start_strands[::1]
 
     # Create initial positions and material frame
     r0 = start_strands[:, 0]
@@ -432,6 +433,7 @@ def scalp():
         k_1 = 1 / curl_radius
         k_2 = np.random.normal(0, 0.2, n_sites) * 0
         tau = delta_h / (2 * np.pi * curl_radius_mean ** 2) * np.ones(n_sites)
+
         q = np.stack([tau, k_1, k_2], axis=1).ravel()
         helix = Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0[i], n0=n0[i], EI=np.ones(3 * n_sites))
 
@@ -450,54 +452,87 @@ def scalp():
         helices.append(helix)
     helices_to_one_obj(helices, frame_idx=1)
 
+    # Solve for the shape under gravity
+    # progress = tqdm(range(len(helices)))
+    # for i in progress:
+    finished = 0
+    progress = tqdm(total=len(helices))
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = [executor.submit(step_wrapper, i, helices[i]) for i in range(len(helices))]
+        for future in concurrent.futures.as_completed(futures):
+            i, helix = future.result()
+            finished += 1
+            helices[i] = helix
+            # progress bar based on finished
+            progress.set_description(f"Finished {finished}/{len(helices)}")
+        # helix = helices[i]
+        # K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+        # B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
+        # q_rest = helix.q.copy()
+        # q_target = K_inv @ B_gen + q_rest[3:]
+        # q_target = np.concatenate([q_rest[:3], q_target])
+        # helix.q = q_target
+        # helix.q0 = q_target
+
+    helices_to_one_obj(helices, frame_idx=2)
+
     # Convert to DER
-    sims = []
-    poses, thetas = [], []
-    for helix in helices:
-        pos, theta = RodHelixConverter.helix_to_rod(helix)
-        pos *= 600
-        mass = np.ones(pos.shape[0]) * 1.0
-        n_edges = theta.shape[0]
-        B = np.zeros((n_edges, 2, 2))
-        for i in range(n_edges):
-            B[i, 0, 0] = 1.0
-            B[i, 1, 1] = 1.0
-
-        # Twisting stiffness
-        beta = 1.0
-        k = 0.0
-        g = 9.81 * 1e-3
-
-        # Simulation parameters (damping for integration, time step, and number of XPBD steps)
-        damping = 0.1
-        dt = 0.04
-        xpbd_steps = 10
-        frozen_pos_indices = np.array([0, 1, 2], dtype=int)
-        frozen_theta_indices = np.array([], dtype=int)
-
-        energies = [Twist(), Bend(), BendTwist(), Gravity()]
-        sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
-                  dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
-                  frozen_theta_indices=frozen_theta_indices)
-        sims.append(sim)
-        poses.append(pos)
-        thetas.append(theta)
-
-    poses, thetas = np.array(poses), np.array(thetas)
-    save_freq = 10
-    progress = tqdm(range(2, 10000))
-    for i in progress:
-        for j in range(len(sims)):
-            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
-            poses[j] = pos
-            thetas[j] = theta
-        # Draw
-        if i % save_freq == 0:
-            strands_to_one_objs(poses, frame_idx=i // save_freq)
-            progress.set_description(f"Frame {i // save_freq}")
+    # sims = []
+    # poses, thetas = [], []
+    # for helix in helices:
+    #     pos, theta = RodHelixConverter.helix_to_rod(helix)
+    #     pos *= 600
+    #     mass = np.ones(pos.shape[0]) * 1.0
+    #     n_edges = theta.shape[0]
+    #     B = np.zeros((n_edges, 2, 2))
+    #     for i in range(n_edges):
+    #         B[i, 0, 0] = 1.0
+    #         B[i, 1, 1] = 1.0
+    #
+    #     # Twisting stiffness
+    #     beta = 1.0
+    #     k = 0.0
+    #     g = 9.81 * 1e-3
+    #
+    #     # Simulation parameters (damping for integration, time step, and number of XPBD steps)
+    #     damping = 0.1
+    #     dt = 0.04
+    #     xpbd_steps = 10
+    #     frozen_pos_indices = np.array([0, 1, 2], dtype=int)
+    #     frozen_theta_indices = np.array([], dtype=int)
+    #
+    #     energies = [Twist(), Bend(), BendTwist(), Gravity()]
+    #     sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
+    #               dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
+    #               frozen_theta_indices=frozen_theta_indices)
+    #     sims.append(sim)
+    #     poses.append(pos)
+    #     thetas.append(theta)
+    #
+    # poses, thetas = np.array(poses), np.array(thetas)
+    # save_freq = 10
+    # progress = tqdm(range(2, 10000))
+    # for i in progress:
+    #     for j in range(len(sims)):
+    #         pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+    #         poses[j] = pos
+    #         thetas[j] = theta
+    #     # Draw
+    #     if i % save_freq == 0:
+    #         strands_to_one_objs(poses, frame_idx=i // save_freq)
+    #         progress.set_description(f"Frame {i // save_freq}")
 
     return
 
+def step_wrapper(i, helix):
+    K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+    B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
+    q_rest = helix.q.copy()
+    q_target = K_inv @ B_gen + q_rest[3:]
+    q_target = np.concatenate([q_rest[:3], q_target])
+    helix.q = q_target
+    helix.q0 = q_target
+    return i, helix
 
 if __name__ == "__main__":
     # main()
