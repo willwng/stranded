@@ -376,7 +376,7 @@ def convert_to_gen():
         # plot the fourier transform of the generalized coordinates
         plt.figure()
         labels = ["Twist", "Bend 1", "Bend 2"]
-        for j in range(1):
+        for j in range(3):
             data = helix.q[j::3]
             plt.plot(data, label=labels[j])
             fft_data = np.fft.fft(data)
