@@ -79,13 +79,18 @@ def plot_generalized_coords(helix: Helix):
     twist = helix.q[::3]
     bend1 = helix.q[1::3]
     bend2 = helix.q[2::3]
+    # bend1[0] = 0
     i = np.arange(0, helix.n_sites)
     plt.plot(i, twist, label="Twist")
     plt.plot(i, bend1, label="Bend 1")
     plt.plot(i, bend2, label="Bend 2")
+    plt.xlabel("Node Index")
+    plt.xticks([0, helix.n_sites // 2, helix.n_sites])
+
     # plt.xlim([0, helix.n_sites])
     # plt.xticks([0, 35, 70])
     # plt.yticks([-1, 0, 1])
+    # plt.yticks([])
 
     plt.legend()
     plt.show()
@@ -342,34 +347,46 @@ def expt():
 
 
 def convert_to_gen():
-    centerline_data = np.load("centerline_aligned.npy")
-    # centerline_data = np.load("curl_aligned.npy")
-    strand_test = centerline_data[:]
+    # centerline_data = np.load("centerline_aligned.npy")
+    centerline_data = np.load("curl_aligned.npy")
+    strand_test = centerline_data[:1]
+    n_strands = strand_test.shape[0]
+    n_sites = strand_test.shape[1]
 
+    # normalize the strands
+    for i in range(strand_test.shape[0]):
+        strand = strand_test[i]
+        strand = RodGenerator.redistribute_vertices(strand)
+        strand = RodHelixConverter.normalize_strand(strand)
+        strand_test[i] = strand
     strands_to_one_objs(strand_test, frame_idx=0)
 
-    generalized_centerline_data = np.zeros_like(centerline_data)
+    # Convert to helix
     helices = []
-    n0 = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
-    progress = tqdm(range(strand_test.shape[0]))
-    for i in progress:
+    index_to_gen = np.zeros((n_sites, n_strands, 3))
+    for i in tqdm(range(strand_test.shape[0])):
         strand = strand_test[i]
-        pos = strand[:, :3]
-        # helix = RodHelixConverter.rod_to_helix(pos, np.zeros(pos.shape[0] - 1))
+        helix = RodHelixConverter.rod_to_helix(strand, theta=np.zeros(strand.shape[0] - 1))
+        helix = RodHelixConverter.rod_to_helix_pos(strand, n0=helix.n0)
         # plot_generalized_coords(helix)
-        # e = pos[1:] - pos[:-1]
-        # e_lengths = np.linalg.norm(e, axis=1)
-        # scale = 1 / (np.mean(e_lengths) ** 2)
-        # print(helix.n0)
-
-        scale = 1e8
-        helix = RodHelixConverter.rod_to_helix_pos(pos, n0=n0, scale=scale)
-        # plot_generalized_coords(helix)
-        generalized_centerline_data[i] = helix.q.reshape(-1, 3)
         helices.append(helix)
+
+        for j in range(helix.n_sites):
+            index_to_gen[j, i] = helix.q[3 * j:3 * j + 3]
+        # plot the fourier transform of the generalized coordinates
+        plt.figure()
+        labels = ["Twist", "Bend 1", "Bend 2"]
+        for j in range(1):
+            data = helix.q[j::3]
+            plt.plot(data, label=labels[j])
+            fft_data = np.fft.fft(data)
+            freq = np.fft.fftfreq(len(data))
+            plt.plot(freq, np.abs(fft_data), label=labels[j])
+
+        plt.xlabel("Frequency")
+        plt.legend()
     helices_to_one_obj(helices, frame_idx=1)
-    np.save("generalized_centerline_aligned.npy", generalized_centerline_data)
-    # np.save("generalized_curl_aligned.npy", generalized_centerline_data)
+    return
 
 
 def scalp():
@@ -393,9 +410,10 @@ def scalp():
     for i1, i2 in edges:
         start_strands.append((pos[i1], pos[i2]))
     start_strands = np.array(start_strands)
-    start_strands = start_strands[::1]
+    start_strands = start_strands[:2000]
+    strands_to_one_objs(start_strands, frame_idx=0)
 
-    # Create initial positions and material frame
+    # Create initial positions and directions
     r0 = start_strands[:, 0]
     n0 = np.zeros((start_strands.shape[0], 3, 3))
     tangents = start_strands[:, 1] - start_strands[:, 0]
@@ -407,23 +425,10 @@ def scalp():
         n0[i, 1] = u / np.linalg.norm(u)
         n0[i, 2] = v / np.linalg.norm(v)
 
+    # Convert to helices
     helices = []
     for i in range(start_strands.shape[0]):
-        n_sites = 64  # Including index 0
-        L = .1
-        s = np.linspace(0, L, n_sites)
-        k_1 = np.zeros(n_sites)
-        k_2 = np.zeros(n_sites)
-        tau = np.zeros(n_sites)
-        q = np.stack([tau, k_1, k_2], axis=1).ravel()
-        helix = Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0[i], n0=n0[i], EI=np.ones(3 * n_sites))
-        helices.append(helix)
-
-    helices_to_one_obj(helices, frame_idx=0)
-
-    helices = []
-    for i in range(start_strands.shape[0]):
-        n_sites = 64  # Including index 0
+        n_sites = 128  # Including index 0
         L = .1
         s = np.linspace(0, L, n_sites)
         # Generalized coordinates
@@ -431,8 +436,13 @@ def scalp():
         curl_radius = np.random.normal(curl_radius_mean, curl_radius_std, n_sites)
         delta_h = 0.01
         k_1 = 1 / curl_radius
-        k_2 = np.random.normal(0, 0.2, n_sites) * 0
+        k_2 = np.random.normal(0, 100, n_sites)
         tau = delta_h / (2 * np.pi * curl_radius_mean ** 2) * np.ones(n_sites)
+        avg_num_cm_random = .03 * L / n_sites
+        num_cm_random = int(L / avg_num_cm_random)
+        random_idx = np.random.choice(n_sites, num_cm_random, replace=True)
+        delta_tau = np.random.normal(0, 100, num_cm_random)
+        tau[random_idx] += delta_tau
 
         q = np.stack([tau, k_1, k_2], axis=1).ravel()
         helix = Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0[i], n0=n0[i], EI=np.ones(3 * n_sites))
@@ -453,8 +463,6 @@ def scalp():
     helices_to_one_obj(helices, frame_idx=1)
 
     # Solve for the shape under gravity
-    # progress = tqdm(range(len(helices)))
-    # for i in progress:
     finished = 0
     progress = tqdm(total=len(helices))
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -463,18 +471,18 @@ def scalp():
             i, helix = future.result()
             finished += 1
             helices[i] = helix
-            # progress bar based on finished
             progress.set_description(f"Finished {finished}/{len(helices)}")
-        # helix = helices[i]
-        # K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-        # B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
-        # q_rest = helix.q.copy()
-        # q_target = K_inv @ B_gen + q_rest[3:]
-        # q_target = np.concatenate([q_rest[:3], q_target])
-        # helix.q = q_target
-        # helix.q0 = q_target
 
     helices_to_one_obj(helices, frame_idx=2)
+
+    # Save the positions
+    poses = []
+    for helix in helices:
+        pos, _ = HelixUtil.propagate(helix)
+        poses.append(pos)
+
+    poses = np.array(poses)
+    np.save("scalp_pos.npy", poses)
 
     # Convert to DER
     # sims = []
@@ -524,18 +532,23 @@ def scalp():
 
     return
 
+
 def step_wrapper(i, helix):
-    K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-    B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
-    q_rest = helix.q.copy()
-    q_target = K_inv @ B_gen + q_rest[3:]
-    q_target = np.concatenate([q_rest[:3], q_target])
-    helix.q = q_target
-    helix.q0 = q_target
+    # Repeatedly solve for the shape
+    for _ in range(3):
+        # Compute the stiffness matrix and forces at current shape
+        K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+        B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
+        # Solve for the shape under forces
+        q_rest = helix.q0
+        q_target = K_inv @ B_gen + q_rest[3:]
+        q_target = np.concatenate([q_rest[:3], q_target])
+        helix.q = q_target
     return i, helix
+
 
 if __name__ == "__main__":
     # main()
     # expt()
-    # convert_to_gen()
-    scalp()
+    convert_to_gen()
+    # scalp()
