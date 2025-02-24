@@ -68,24 +68,20 @@ class RodHelixConverter:
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray, scale: float) -> Helix:
+    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray) -> Helix:
         """
         Converts a rod to a helix, ensuring the positions are preserved
         """
         n_sites = pos.shape[0]
         q = np.zeros(3 * n_sites)
 
-        # Edge lengths
-        e = pos[1:] - pos[:-1]
-        edge_lengths = np.linalg.norm(e, axis=1)
         s = [0]
-
+        r0 = pos[0]
         # Successively solve for the generalized coordinates
         n_L = n0.copy()
         q_prev = np.random.rand(3)
         for i in range(1, n_sites):
             r_L = pos[i - 1]
-            prev = i > 1
 
             # Objective: minimize the distance between the computed position and the actual position
             def obj(t, k1, k2, ds):
@@ -100,16 +96,16 @@ class RodHelixConverter:
                     n_0_par, n_0_perp = n_par[0], n_perp[0]
                     r = (r_L + n_0_par * ds + n_0_perp * np.sin(Omega_norm * ds) / Omega_norm +
                          np.cross(w, n_0_perp) * (1 - np.cos(Omega_norm * ds)) / Omega_norm)
-                r_obj = scale * np.linalg.norm(r - pos[i]) ** 2
-                # Add objective for difference in curvature
-                d_obj = 0
-                if prev:
-                    d_obj = 1e-6 * np.linalg.norm(np.array([t, k1, k2]) - q_prev) ** 2
+                r_obj = np.linalg.norm(r - pos[i]) ** 2
+                d_obj = 1e0 * np.linalg.norm(np.array([t, k1, k2])) ** 2
                 return r_obj + d_obj
 
             # Initial guess. By curvature, s must be larger than the edge length
+            e = pos[1:] - pos[:-1]
+            edge_lengths = np.linalg.norm(e, axis=1)
             qs_guess = np.concatenate((q_prev, [edge_lengths[i - 1]]))
             bounds = [(None, None), (None, None), (None, None), (edge_lengths[i - 1], 1.2 * edge_lengths[i - 1])]
+
             # Solve for the generalized coordinates
             res = minimize(lambda x: obj(*x), qs_guess, method='L-BFGS-B', tol=1e-8, bounds=bounds)
             tau, k_1, k_2, s_sL = res.x
@@ -127,56 +123,46 @@ class RodHelixConverter:
             q[3 * (i - 1):3 * (i - 1) + 3] = np.array([tau, k_1, k_2])
             s.append(s_sL)
 
-        r0 = pos[0]
-        s = np.cumsum(s)
-
-        L = np.sum(edge_lengths)
+        # Just repeat for the last site
         q[-3:] = q[-6:-3]
+
+        # Now we have the desired arc lengths
+        s = np.array(s)
+        s[:] = np.mean(s)
+        s = np.cumsum(s)
+        L = np.max(s)
+
+        # Solve again using least-squares over all coordinates but with arc length now fixed
+        r = np.zeros((n_sites, 3))
+        n = np.zeros((n_sites, 3, 3))
+
+        def rho(z):
+            return 2 * ((1 + z) ** 0.5 - 1)
+            # return z
+
+        def total_obj(qk):
+            HelixUtil.propagate_q(q=qk, n0=n0, r0=r0, n=n, r=r, s=s, n_sites=n_sites)
+            z = np.linalg.norm(r - pos, axis=1)
+            return np.sum(rho(z) ** 2)
+
+        q = HelixUtil.smoothen(q=q, n_sites=n_sites, k=3)
+        q = HelixUtil.smoothen(q=q, n_sites=n_sites, k=5)
+        res = minimize(total_obj, q, method='L-BFGS-B', tol=1e-8, options={'disp': True})
+        q = res.x
+
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def rod_to_helix_pos2(pos: np.ndarray, n0: np.ndarray, q_guess: np.ndarray) -> Helix:
-        """
-        Converts a rod to a helix, ensuring the positions are preserved
-        """
-        n_sites = pos.shape[0]
-        r0 = pos[0]
+    def normalize_strand(pos):
+        # Translate node index 0 to origin
+        pos -= pos[0]
 
-        # Edge lengths (x_i+1 - x_i)
+        # Make edge lengths on average equal to 1
         e = pos[1:] - pos[:-1]
         edge_lengths = np.linalg.norm(e, axis=1)
 
-        x_guess = np.concatenate((q_guess, edge_lengths))
-
-        def obj(x):
-            # Extract generalized coordinates and arc lengths
-            q = x[:3 * n_sites]
-            ds = x[3 * n_sites:]
-            s = np.cumsum(ds)
-            s = np.insert(s, 0, 0)
-            helix = Helix(q=q, q0=q, n_sites=n_sites, s=s, L=np.max(s), r0=r0, n0=n0, EI=np.array([]))
-            r, n = HelixUtil.propagate(helix)
-
-            f_obj = np.linalg.norm(r - pos)
-            # Also add a term to penalize spikes in curvature
-            tau, k1, k2 = q[::3], q[1::3], q[2::3]
-            tau_diffs = np.abs(tau[1:] - tau[:-1])
-            k1_diffs = np.abs(k1[1:] - k1[:-1])
-            k2_diffs = np.abs(k2[1:] - k2[:-1])
-            # f_obj += 1e-2 * (np.sum(tau_diffs) + np.sum(k1_diffs) + np.sum(k2_diffs))
-            return f_obj
-
-        # Create bounds for the arc lengths
-        bounds = [(None, None) for _ in range(3 * n_sites)]
-        bounds += [(edge_lengths[i - 1], 1.2 * edge_lengths[i - 1]) for i in range(1, n_sites)]
-        res = minimize(obj, x_guess, method='L-BFGS-B', tol=1e-8, options={'disp': True}, bounds=bounds)
-        q_solve = res.x[:3 * n_sites]
-        ds_solve = res.x[3 * n_sites:]
-        s_solve = np.cumsum(ds_solve)
-        s_solve = np.insert(s_solve, 0, 0)
-        L = np.max(s_solve)
-        return Helix(q=q_solve, q0=q_solve.copy(), n_sites=n_sites, s=s_solve, L=L, r0=r0, n0=n0,
-                     EI=np.ones(3 * n_sites))
+        pos /= np.mean(edge_lengths)
+        return pos
 
     @staticmethod
     def helix_to_rod(helix: Helix):

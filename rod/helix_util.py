@@ -7,27 +7,19 @@ from rod.helix import Helix
 class HelixUtil:
 
     @staticmethod
-    def propagate(helix: Helix) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Computes the centerline and the material frames from the generalized coordinates [q]
-
-        n_i(s) = n_{i, L}^{Q ||} + n_{i, L}^{Q perp} cos(Omega(s - s_L^Q)) + omega \cross n_{i, L}^{Q perp} sin(Omega(s - s_L^Q))
-        """
-        # Centerline and material frames
-        r = np.zeros((helix.n_sites, 3))
-        n = np.zeros((helix.n_sites, 3, 3))
-
+    def propagate_q(q: np.ndarray, r0: np.ndarray, n0: np.ndarray, n_sites: int, s: np.ndarray, r: np.ndarray,
+                    n: np.ndarray):
         # Starting with the clamped material frame, integrate forward
-        r[0, :] = helix.r0
-        n[0, :] = helix.n0
-        for i in range(1, helix.n_sites):
+        r[0, :] = r0
+        n[0, :] = n0
+        for i in range(1, n_sites):
             # Left hand side of interval (previous element)
             r_L = r[i - 1]
             n_L = n[i - 1]
-            s, s_L = helix.s[i], helix.s[i - 1]
-            s_sL = s - s_L
+            s_R, s_L = s[i], s[i - 1]
+            s_sL = s_R - s_L
             # Twist and curvature
-            tau, k_1, k_2 = helix.q[3 * i - 3:3 * i]
+            tau, k_1, k_2 = q[3 * i - 3:3 * i]
             # Darboux vector and unit vector aligned with the Darboux vector
             Omega = tau * n_L[0, :] + k_1 * n_L[1, :] + k_2 * n_L[2, :]
             Omega_norm = np.linalg.norm(Omega)
@@ -54,6 +46,19 @@ class HelixUtil:
             r_i = (r_L + n_0_parallel * s_sL + n_0_perp * np.sin(Omega_norm * s_sL) / Omega_norm +
                    np.cross(w, n_0_perp) * (1 - np.cos(Omega_norm * s_sL)) / Omega_norm)
             r[i] = r_i
+        return r, n
+
+    @staticmethod
+    def propagate(helix: Helix) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Computes the centerline and the material frames from the generalized coordinates [q]
+
+        n_i(s) = n_{i, L}^{Q ||} + n_{i, L}^{Q perp} cos(Omega(s - s_L^Q)) + omega \cross n_{i, L}^{Q perp} sin(Omega(s - s_L^Q))
+        """
+        # Centerline and material frames
+        r = np.zeros((helix.n_sites, 3))
+        n = np.zeros((helix.n_sites, 3, 3))
+        HelixUtil.propagate_q(helix.q, helix.r0, helix.n0, helix.n_sites, helix.s, r, n)
         return r, n
 
     @staticmethod
@@ -134,7 +139,7 @@ class HelixUtil:
         r_com = 0.5 * (r[1:] + r[:-1])
         l = helix.s[1:] - helix.s[:-1]
         mass = rhoS * l
-        return g * np.sum(mass * r_com[:, 2]) # + HelixUtil.compute_random_potential(r_com, seed=seed)
+        return g * np.sum(mass * r_com[:, 2])  # + HelixUtil.compute_random_potential(r_com, seed=seed)
 
     @staticmethod
     def compute_gen_force(helix: Helix, g: float, rhoS: float, seed: int) -> np.ndarray:
@@ -183,36 +188,31 @@ class HelixUtil:
         return force_c
 
     @staticmethod
-    def smoothen(helix: Helix, k: int) -> tuple[np.ndarray, np.ndarray]:
+    def smoothen(q: np.ndarray, n_sites: int, k: int) -> np.ndarray:
         """
         Smoothen the helix by averaging the twist and curvature over a window of size k
         """
-        q = helix.q.reshape(-1, 3)
-        s = helix.s
+        q = q.reshape(-1, 3)
         tau, kappa1, kappa2 = q[:, 0], q[:, 1], q[:, 2]
         tau_smooth, kappa1_smooth, kappa2_smooth = tau.copy(), kappa1.copy(), kappa2.copy()
-        s_smooth = s.copy()
-        for i in range(k, helix.n_sites - k):
+        for i in range(k, n_sites - k):
             tau_smooth[i] = np.mean(tau[i - k:i + k])
             kappa1_smooth[i] = np.mean(kappa1[i - k:i + k])
             kappa2_smooth[i] = np.mean(kappa2[i - k:i + k])
-            s_smooth[i] = np.mean(s[i - k:i + k])
         # End points average over smaller window
         for i in range(k):
             tau_smooth[i] = np.mean(tau[:2 * i + 1])
             kappa1_smooth[i] = np.mean(kappa1[:2 * i + 1])
             kappa2_smooth[i] = np.mean(kappa2[:2 * i + 1])
-            s_smooth[i] = np.mean(s[:2 * i + 1])
-        for i in range(helix.n_sites - k, helix.n_sites):
-            tau_smooth[i] = np.mean(tau[2 * i - helix.n_sites + 1:])
-            kappa1_smooth[i] = np.mean(kappa1[2 * i - helix.n_sites + 1:])
-            kappa2_smooth[i] = np.mean(kappa2[2 * i - helix.n_sites + 1:])
-            s_smooth[i] = np.mean(s[2 * i - helix.n_sites + 1:])
+        for i in range(n_sites - k, n_sites):
+            tau_smooth[i] = np.mean(tau[2 * i - n_sites + 1:])
+            kappa1_smooth[i] = np.mean(kappa1[2 * i - n_sites + 1:])
+            kappa2_smooth[i] = np.mean(kappa2[2 * i - n_sites + 1:])
         tau_smooth[-1] = tau_smooth[-2]
         kappa1_smooth[-1] = kappa1_smooth[-2]
         kappa2_smooth[-1] = kappa2_smooth[-2]
 
-        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel(), s_smooth
+        return np.stack([tau_smooth, kappa1_smooth, kappa2_smooth], axis=1).ravel()
 
     @staticmethod
     def create_smoothing_kernel(window_size):
