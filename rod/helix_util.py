@@ -299,3 +299,8 @@ class HelixUtil:
 
         return Helix(r0=helix.r0, n0=helix.n0, q=q_increased, EI=EI, s=s_new, L=helix.L,
                      n_sites=n_new_sites, q0=q_increased.copy())
+
+    @staticmethod
+    def copy_helix(helix: Helix) -> Helix:
+        return Helix(q=helix.q.copy(), q0=helix.q0.copy(), n_sites=helix.n_sites, s=helix.s.copy(), L=helix.L,
+                     r0=helix.r0.copy(), n0=helix.n0.copy(), EI=helix.EI.copy())

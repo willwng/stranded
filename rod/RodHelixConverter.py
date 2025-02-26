@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 
-from math_util.rotation import RotationUtil
+from math_util.rotation import RotationUtil, Quaternion
 from rod.helix import Helix
 from rod.helix_util import HelixUtil
 from rod.rod_util import RodUtil
@@ -160,8 +160,19 @@ class RodHelixConverter:
         # Make edge lengths on average equal to 1
         e = pos[1:] - pos[:-1]
         edge_lengths = np.linalg.norm(e, axis=1)
-
         pos /= np.mean(edge_lengths)
+
+        # Make strand point in the z-direction
+        direction = pos[-1] - pos[0]
+        direction /= np.linalg.norm(direction)
+        z_axis = np.array([0, 0, 1])
+        rot_axis = np.cross(direction, z_axis)
+        rot_axis /= np.linalg.norm(rot_axis)
+        rot_angle = np.arccos(np.dot(direction, z_axis))
+        P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
+        P_i.normalize()
+        for i in range(pos.shape[0]):
+            pos[i] = P_i @ pos[i]
         return pos
 
     @staticmethod

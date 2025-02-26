@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.fft import fft, fftfreq, ifft
 from tqdm import tqdm
 import concurrent.futures
 
@@ -347,13 +348,16 @@ def expt():
 
 
 def convert_to_gen():
-    # centerline_data = np.load("centerline_aligned.npy")
-    centerline_data = np.load("curl_aligned.npy")
-    strand_test = centerline_data[:1]
+    centerline_data = np.load("curl.npy")
+    # centerline_data = np.load("curl_aligned.npy")
+    # Select a strand to begin with
+    ind = [525]
+    strand_test = centerline_data[ind]
     n_strands = strand_test.shape[0]
     n_sites = strand_test.shape[1]
+    print(f"n_strands: {n_strands}, n_sites: {n_sites}")
 
-    # normalize the strands
+    # Normalize the strands
     for i in range(strand_test.shape[0]):
         strand = strand_test[i]
         strand = RodGenerator.redistribute_vertices(strand)
@@ -361,33 +365,175 @@ def convert_to_gen():
         strand_test[i] = strand
     strands_to_one_objs(strand_test, frame_idx=0)
 
-    # Convert to helix
+    # Convert strands to generalized coordinates
     helices = []
-    index_to_gen = np.zeros((n_sites, n_strands, 3))
     for i in tqdm(range(strand_test.shape[0])):
         strand = strand_test[i]
         helix = RodHelixConverter.rod_to_helix(strand, theta=np.zeros(strand.shape[0] - 1))
         helix = RodHelixConverter.rod_to_helix_pos(strand, n0=helix.n0)
-        # plot_generalized_coords(helix)
         helices.append(helix)
 
-        for j in range(helix.n_sites):
-            index_to_gen[j, i] = helix.q[3 * j:3 * j + 3]
-        # plot the fourier transform of the generalized coordinates
-        plt.figure()
-        labels = ["Twist", "Bend 1", "Bend 2"]
+    # Ensure all the helices point upwards
+    align_helices(helices)
+    helices_to_one_obj(helices, frame_idx=1)
+
+    # Compute the rest state in generalized coordinates
+    for helix in helices:
+        K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+        B_gen = HelixUtil.compute_gen_force(helix, g=9.81 * 1e-5, rhoS=1.0, seed=1)
+        q_target = helix.q.copy()
+        q_rest = q_target[3:] - K_inv @ B_gen
+        q_rest = np.concatenate([q_target[:3], q_rest])
+        helix.q0 = q_rest.copy()
+        helix.q = q_rest
+
+    # Add variants by perturbing the rest-state coordinates
+    print("Creating perturbed helices")
+    fig_fft, axs_fft = plt.subplots(3, 1)
+    fig_data, axs_data = plt.subplots(3, 1)
+    axs_fft = axs_fft.ravel()
+    axs_data = axs_data.ravel()
+    fig_fft.subplots_adjust(hspace=0.5)
+    fig_data.subplots_adjust(hspace=0.5)
+    new_helices = helices.copy()
+    for helix in helices:
+        # Plot the fourier transform of the generalized coordinates
+        labels = [r"$\tau$", r"$\kappa_1$", r"$\kappa_2$"]
         for j in range(3):
             data = helix.q[j::3]
-            plt.plot(data, label=labels[j])
-            fft_data = np.fft.fft(data)
-            freq = np.fft.fftfreq(len(data))
-            plt.plot(freq, np.abs(fft_data), label=labels[j])
+            label = labels[j] if i == 0 else None
+            fft_data = fft(data)
+            freq = fftfreq(data.size)
+            # plot positive frequencies
+            axs_fft[j].plot(freq[freq > 0], np.abs(fft_data)[freq > 0], label=label, color=f"C{j}")
+            axs_fft[j].set_xlabel("Frequency")
+            axs_fft[j].legend()
+            # Draw the inverse transform
+            axs_data[j].plot(data, label=label, color=f"C{j}")
+            axs_data[j].set_xlabel("Node Index")
+            axs_data[j].legend(loc="upper right")
 
-        plt.xlabel("Frequency")
-        plt.legend()
-    helices_to_one_obj(helices, frame_idx=1)
+        # Make new helices with perturbed generalized coordinates
+        for k in range(5):
+            helix_new = HelixUtil.copy_helix(helix)
+            helix_new.r0[0] += 25 * (k + 1)
+            for j in range(3):
+                label = labels[j] if i == 0 else None
+                # Take Fourier transform of generalized coordinates
+                data = helix.q[j::3]
+                fft_data = fft(data)
+                # Add noise to each point of the fourier transform, scale by 30% of its current value
+                noise = np.random.normal(0, 0.6 * np.abs(fft_data))
+                fft_data += noise
+                freq = fftfreq(data.size)
+                axs_fft[j].plot(freq[freq > 0], np.abs(fft_data)[freq > 0], label=f"Perturbed {label}", color=f"C{j}",
+                                linestyle="--")
+                # Inverse transform back into generalized coordinates
+                data_new = ifft(fft_data)
+                axs_data[j].plot(data_new, label=f"Perturbed {label}", color=f"C{j}", linestyle="--")
+                helix_new.q[j::3] = data_new
+                # data_new = helix.q[j::3] + np.random.normal(0, 0.6 * np.abs(data))
+                # helix_new.q[j::3] = data_new
+                # axs_data[j].plot(data_new, label=f"Perturbed {label}", color=f"C{j}", linestyle="--")
+            new_helices.append(helix_new)
+    helices = new_helices
+
+    # Align and draw the perturbed rest states
+    align_helices(helices)
+    helices_to_one_obj(helices, frame_idx=2)
+    plt.show()
+
+    # Solve the equilibrium state
+    print("Solving equilibrium state")
+    solve_gravity_state(helices)
     return
 
+def align_helices(helices):
+    for helix in helices:
+        r, _ = HelixUtil.propagate(helix)
+        centerline = r[-1] - r[0]
+        centerline = centerline / np.linalg.norm(centerline)
+        z_axis = np.array([0, 0, 1])
+        rot_axis = np.cross(centerline, z_axis)
+        rot_axis = rot_axis / np.linalg.norm(rot_axis)
+        rot_angle = np.arccos(np.dot(centerline, z_axis))
+        P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
+        P_i.normalize()
+        helix.n0 = P_i.rotate_vec(helix.n0)
+    return
+
+def solve_gravity_state(helices: list[Helix]):
+    # Setup simulation
+    poses, thetas = [], []
+    sims = []
+    for helix in helices:
+        pos, theta = RodHelixConverter.helix_to_rod(helix)
+        poses.append(pos)
+        thetas.append(theta)
+
+        n_edges = theta.shape[0]
+        B = np.zeros((n_edges, 2, 2))
+        for i in range(n_edges):
+            B[i, 0, 0] = 1.0
+            B[i, 1, 1] = 1.0
+
+        # Twisting stiffness
+        beta = 1.0
+        k = 0.0
+        g = 9.81 * 1e-5
+        mass = np.ones(helix.n_sites) * 1.0
+
+        # Simulation parameters (damping for integration, time step, and number of XPBD steps)
+        damping = 0.02
+        dt = 0.1
+        xpbd_steps = 10
+        frozen_pos_indices = np.array([0], dtype=int)
+        frozen_theta_indices = np.array([], dtype=int)
+
+        energies = [Twist(), Bend(), BendTwist(), Gravity()]
+        sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies, damping=damping,
+                  dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
+                  frozen_theta_indices=frozen_theta_indices)
+        sims.append(sim)
+
+    poses, thetas = np.array(poses), np.array(thetas)
+    save_freq = 20
+    progress = tqdm(range(3 * save_freq, 20000))
+    for i in progress:
+        if i % save_freq == 0:
+            strands_to_one_objs(poses, frame_idx=i // save_freq)
+            progress.set_description(f"Frame {i // save_freq}")
+        # Perform a step in parallel
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = [executor.submit(step_wrapper, i, poses[i], thetas[i], sims[i]) for i in range(len(sims))]
+            for future in concurrent.futures.as_completed(futures):
+                i, pos, theta, sim = future.result()
+                poses[i], thetas[i], sims[i] = pos, theta, sim
+
+
+    # The equilibrium state satisfies:
+    #   K(q_eq - q_0) = B(q_eq)
+    #  => q_eq = q_0 + K^{-1} B(q_eq)
+    # K = HelixUtil.compute_pointwise_stiffness_matrix(helix)
+    # K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+    # q_k = helix.q.copy()
+    # q_0 = helix.q0.copy()
+    # progress = tqdm(range(15))
+    # for i in progress:
+    #     helix.q = q_k
+    #     B_k = HelixUtil.compute_gen_force(helix, g=9.81 * 1e-5, rhoS=1.0, seed=1)
+    #     F_int = K @ (q_k[3:] - q_0[3:])
+    #     q_k[3:] = q_0[3:] + K_inv @ B_k
+    #
+    #     change = np.linalg.norm(q_k - helix.q)
+    #     progress.set_description(f"Update: {np.linalg.norm(change)}")
+    #
+    # helix.q = q_k
+    return
+
+def step_wrapper(i, pos, theta, sim):
+    pos, theta = sim.step(pos=pos, theta=theta)
+    return i, pos, theta, sim
 
 def scalp():
     # Open OBJ
@@ -532,19 +678,6 @@ def scalp():
 
     return
 
-
-def step_wrapper(i, helix):
-    # Repeatedly solve for the shape
-    for _ in range(3):
-        # Compute the stiffness matrix and forces at current shape
-        K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-        B_gen = HelixUtil.compute_gen_force(helix, g=9.81, rhoS=1e3, seed=1)
-        # Solve for the shape under forces
-        q_rest = helix.q0
-        q_target = K_inv @ B_gen + q_rest[3:]
-        q_target = np.concatenate([q_rest[:3], q_target])
-        helix.q = q_target
-    return i, helix
 
 
 if __name__ == "__main__":
