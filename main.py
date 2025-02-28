@@ -138,8 +138,47 @@ def main():
         strand += r0[i]
     strands_to_one_objs(aligned_synthetic_strands, frame_idx=2)
 
-    # Simulate the strands
+    # Simulation params
+    n_sites = aligned_synthetic_strands.shape[1]
+    n_edges = n_sites - 1
+    mass = np.ones(n_sites) * 1
+    B = np.zeros((n_edges, 2, 2))
+    B[:, 0, 0] = B[:, 1, 1] = 1.0
+    beta = 0.1
+    k = 0.0
+    g = 9.81 * 1e-3
+    damping = 0.01
+    dt = 0.1
+    xpbd_steps = 10
+    energies = [Gravity(), Twist(), Bend(), BendTwist()]
+    frozen_pos_indices = np.array([0, 1, 2])
+    frozen_theta_indices = np.array([0])
+
+    poses = aligned_synthetic_strands.copy()
+    thetas = np.zeros((n_strands, n_edges))
+
+    sims = []
+    for i in range(n_strands):
+        pos, theta = poses[i], thetas[i]
+        sim = Sim(pos=pos, theta=theta, B=B, beta=beta, k=k, g=g, mass=mass, energies=energies,
+                  damping=damping, dt=dt, xpbd_steps=xpbd_steps, frozen_pos_indices=frozen_pos_indices,
+                  frozen_theta_indices=frozen_theta_indices)
+        sims.append(sim)
+
+    for i in tqdm(range(1000)):
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = [executor.submit(step_wrapper, j, poses[j], thetas[j], sims[j]) for j in range(len(sims))]
+            for future in concurrent.futures.as_completed(futures):
+                j, pos, theta, sim = future.result()
+                poses[j], thetas[j], sims[j] = pos, theta, sim
+        strands_to_one_objs(poses, frame_idx=2 + i)
     return
+
+
+def step_wrapper(i, pos, theta, sim, n_steps = 10):
+    for _ in range(n_steps):
+        pos, theta = sim.step(pos=pos, theta=theta)
+    return i, pos, theta, sim
 
 
 if __name__ == "__main__":
