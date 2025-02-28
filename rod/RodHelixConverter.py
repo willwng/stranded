@@ -68,7 +68,7 @@ class RodHelixConverter:
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray) -> Helix:
+    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray, q_guess) -> Helix:
         """
         Converts a rod to a helix, ensuring the positions are preserved
         """
@@ -145,17 +145,18 @@ class RodHelixConverter:
             z = np.linalg.norm(r - pos, axis=1)
             return np.sum(rho(z) ** 2)
 
-        q = HelixUtil.smoothen(q=q, n_sites=n_sites, k=3)
-        q = HelixUtil.smoothen(q=q, n_sites=n_sites, k=5)
-        res = minimize(total_obj, q, method='L-BFGS-B', tol=1e-8, options={'disp': True})
+        # bla = HelixUtil.smoothen(q=bla, n_sites=n_sites, k=3)
+        # bla = HelixUtil.smoothen(q=bla, n_sites=n_sites, k=1)
+        res = minimize(total_obj, q_guess, method='L-BFGS-B', tol=1e-8, options={'disp': True})
         q = res.x
 
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def normalize_strand(pos):
-        # Translate node index 0 to origin
-        pos -= pos[0]
+    def normalize_strand(pos, normalize_positions: bool = True, normalize_direction: bool = True):
+        if normalize_positions:
+            # Translate node index 0 to origin
+            pos -= pos[0]
 
         # Make edge lengths on average equal to 1
         e = pos[1:] - pos[:-1]
@@ -163,16 +164,17 @@ class RodHelixConverter:
         pos /= np.mean(edge_lengths)
 
         # Make strand point in the z-direction
-        direction = pos[-1] - pos[0]
-        direction /= np.linalg.norm(direction)
-        z_axis = np.array([0, 0, 1])
-        rot_axis = np.cross(direction, z_axis)
-        rot_axis /= np.linalg.norm(rot_axis)
-        rot_angle = np.arccos(np.dot(direction, z_axis))
-        P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
-        P_i.normalize()
-        for i in range(pos.shape[0]):
-            pos[i] = P_i @ pos[i]
+        if normalize_direction:
+            direction = pos[-1] - pos[0]
+            direction /= np.linalg.norm(direction)
+            z_axis = np.array([0, 0, 1])
+            rot_axis = np.cross(direction, z_axis)
+            rot_axis /= np.linalg.norm(rot_axis)
+            rot_angle = np.arccos(np.dot(direction, z_axis))
+            P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
+            P_i.normalize()
+            for i in range(pos.shape[0]):
+                pos[i] = P_i @ pos[i]
         return pos
 
     @staticmethod
