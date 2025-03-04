@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
-from main import strands_to_one_objs
+from main import strands_to_one_objs, plot_generalized_coords
 from rod.RodHelixConverter import RodHelixConverter
 from rod.helix_util import HelixUtil
 from rod.preprocess import Preprocess
@@ -97,25 +97,84 @@ def visualize_clusters(strands, labels):
 
 def main():
     # Load strand data
-    strands = np.load("curl.npy")
-    strands = strands[::5]
+    curl_strands = np.load("curl.npy")[:5]
+    centerline_strands = np.load("centerline.npy")[:5]
+    n_curl_strands = curl_strands.shape[0]
+    strands = np.concatenate((curl_strands, centerline_strands))
     strands, centroids, directions = Preprocess.align_data(strands)
     for i in range(strands.shape[0]):
         strand = strands[i]
-        strand = RodHelixConverter.normalize_strand(strand, normalize_positions=False, normalize_direction=False)
-        # If z is decreasing, reverse
-        if strand[0, 2] > strand[-1, 2]:
-            strand = strand[::-1]
+        # strand = RodHelixConverter.normalize_strand(strand, normalize_positions=False, normalize_direction=False, )
+        strand[:, 0] += 0.01 * (i % n_curl_strands)
+        strand[:, 2] *= -1
+        # reverse order
+        strand = strand[::-1]
         strands[i] = strand
+    curl_strands, centerline_strands = strands[:n_curl_strands], strands[n_curl_strands:]
+    strands_to_one_objs(strands, frame_idx=0, y_up=True)
 
-    print(f"Loaded {strands.shape[0]} strands")
+    diffs = curl_strands - centerline_strands
+    new_centerline_strands = centerline_strands.copy()
+    # For each centerline strand, make a vertical copy
+    for i in range(new_centerline_strands.shape[0]):
+        strand = new_centerline_strands[i]
+        # Center at mean
+        mean_x, mean_y = np.mean(strand[:, 0]), np.mean(strand[:, 1])
+        strand[:, 0] = mean_x
+        strand[:, 1] = mean_y
+        # Space out in z
+        # strand[:, 2] = np.linspace(np.min(strand[:, 2]), np.max(strand[:, 2]), strand.shape[0])
+        new_centerline_strands[i] = strand
+    new_curl_strands = new_centerline_strands + diffs
+    new_strands = np.concatenate((new_curl_strands, new_centerline_strands))
+    strands_to_one_objs(new_strands, frame_idx=1, y_up=True)
+
+    helices = []
+    qs = []
+    fig, ax = plt.subplots(3, 1)
+    for curl_strand in new_curl_strands:
+        helix = RodHelixConverter.rod_to_helix(curl_strand, np.zeros(curl_strand.shape[0] - 1))
+        # helix.q = HelixUtil.smoothen(helix.q, helix.n_sites, k=3)
+        # helix.q = HelixUtil.smoothen(helix.q, helix.n_sites, k=5)
+        helix = RodHelixConverter.rod_to_helix_pos(curl_strand, helix.n0, helix.q)
+        alpha = 0.3
+        ax[0].plot(helix.q[0::3], color="C0", alpha=alpha)
+        ax[1].plot(helix.q[1::3], color="C1", alpha=alpha)
+        ax[2].plot(helix.q[2::3], color="C2", alpha=alpha)
+        qs.append(helix.q)
+        helices.append(helix)
+    qs = np.array(qs)
+
+    min_twist, min_bend1, min_bend2 = np.min(qs[:, 0::3]), np.min(qs[:, 1::3]), np.min(qs[:, 2::3])
+    max_twist, max_bend1, max_bend2 = np.max(qs[:, 0::3]), np.max(qs[:, 1::3]), np.max(qs[:, 2::3])
+    min_q, max_q = np.min([min_twist, min_bend1, min_bend2]), np.max([max_twist, max_bend1, max_bend2])
+    ax[0].set_ylim([min_q, max_q])
+    ax[1].set_ylim([min_q, max_q])
+    ax[2].set_ylim([min_q, max_q])
+    ax[0].set_ylabel("Twist")
+    ax[1].set_ylabel("Bend 1")
+    ax[2].set_ylabel("Bend 2")
+
+    helix_strands = []
+    for helix in helices:
+        pos, theta = RodHelixConverter.helix_to_rod(helix)
+        helix_strands.append(pos)
+        ax[0].plot(pos[:, 0], color="C0")
+        ax[1].plot(pos[:, 1], color="C1")
+        ax[2].plot(pos[:, 2], color="C2")
+    helix_strands = np.array(helix_strands)
+
+    strands_to_one_objs(helix_strands, frame_idx=2, y_up=True)
+    plt.show()
+
+    quit()
 
     # Cluster strands using feature-based approach
     labels = cluster_strands(strands)
     visualize_clusters(strands, labels)
 
     # Get all strands with label
-    target_label = 5
+    target_label = 18
     target_strands = strands[labels == target_label]
     target_strands = np.array([target_strands[0]])
     print(f"Found {target_strands.shape[0]} strands with label {target_label}")
@@ -159,7 +218,13 @@ def main():
     helices = []
     for strand in target_strands[:1]:
         helix = RodHelixConverter.rod_to_helix(strand, np.zeros(strand.shape[0] - 1))
-        # helix = RodHelixConverter.rod_to_helix_pos(strand, helix.n0, helix.q)
+        K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
+        B_gen = HelixUtil.compute_gen_force(helix, g=9.81 * 1e-3, rhoS=1.0 / helix.L, seed=1)
+        q_target = helix.q.copy()
+        q_rest = q_target[3:] - K_inv @ B_gen
+        q_rest = np.concatenate([q_target[:3], q_rest])
+        helix.q0 = q_rest.copy()
+        helix.q = q_rest
         helices.append(helix)
     # target_strands = [target_strands[0]]
     fig, ax = plt.subplots(3, 1)
@@ -188,8 +253,6 @@ def main():
             ax[j].set_xticks([0, strand.shape[0] // 2, strand.shape[0]])
             ax[j].set_ylabel(labels[j])
 
-
-
     # From one strand, create new strands by perturbing
     new_strands = []
 
@@ -215,7 +278,7 @@ def main():
 
     new_helices = []
     base_helix = helices[0]
-    n_new_strands = 2000
+    n_new_strands = 20
     for j in range(0, n_new_strands):
         helix_new = HelixUtil.copy_helix(base_helix)
         q = helix_new.q
@@ -259,7 +322,6 @@ def main():
         strand[:, 1] -= 20 * i
     for i, strand in enumerate(new_strands):
         strand[:, 1] -= 20 * i
-
 
     # Add all target strands
     strands_vis = np.concatenate((target_strands, new_strands))

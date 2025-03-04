@@ -62,7 +62,9 @@ class Visualizer:
             # Write vertices
             vertex_offset = init_offset
             for i, point in enumerate(pos):
-                f.write(f"v {point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n")
+                # color blac
+                f.write(f"v {point[0]:.6f} {point[1]:.6f} {point[2]:.6f} 0 0 0\n")
+                # f.write(f"v {point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n")
 
             # Write edges between consecutive points
             for i in range(len(pos) - 1):

@@ -38,13 +38,13 @@ def create_frame(pos: np.ndarray,
     return
 
 
-def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None):
+def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None, y_up: bool = True):
     output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.clear_output_file(output_file)
     vertex_offset = 1
     for strand in strands:
         pos = strand[:, :3]
-        vertex_offset = Visualizer.to_simple_obj(pos=pos, output_file=output_file, init_offset=vertex_offset)
+        vertex_offset = Visualizer.to_simple_obj(pos=pos, output_file=output_file, init_offset=vertex_offset, y_up=y_up)
     return
 
 
@@ -93,66 +93,101 @@ def plot_generalized_coords(helix: Helix):
     plt.legend()
     plt.show()
 
+def decimate_strands(strands: np.ndarray, n_sites: int):
+    decimated_strands = np.zeros((strands.shape[0], n_sites, strands.shape[2]))
+    for i in range(strands.shape[0]):
+        strand = strands[i]
+        n_sites_strand = strand.shape[0]
+        idx = np.linspace(0, n_sites_strand - 1, n_sites, dtype=int)
+        decimated_strands[i] = strand[idx]
+    return decimated_strands
 
 def main():
-    scalp_strands = np.load("scalp_strands.npy") * 1e3
+    scalp_strands = np.load("me.npy") * 2e0
+    scalp_strands = scalp_strands[:]
+    # fix y up
+    scalp_strands = scalp_strands[:, :, [0, 2, 1]]
+    scalp_strands[:, :, 1] *= -1
+    mean_scalp_pos = np.mean(scalp_strands, axis=(0, 1))
+    scalp_strands -= mean_scalp_pos
+    new_strands = []
+    for strand in scalp_strands:
+        strand = RodGenerator.add_vertices_until(strand, 128)
+        new_strands.append(strand)
+    new_strands = np.array(new_strands)
+    scalp_strands = new_strands
+    np.save("me_2.npy", new_strands)
+
+
+    # ind_keep = np.random.choice(scalp_strands.shape[0], scalp_strands.shape[0] // 30, replace=False)
+    # scalp_strands = scalp_strands[ind_keep]
+    # scalp_strands = decimate_strands(scalp_strands, 128)
     synthetic_strands = np.load("synthetic_strands.npy")
-    strands_to_one_objs(scalp_strands, frame_idx=0)
+    strands_to_one_objs(scalp_strands, frame_idx=0, y_up=False)
     strands_to_one_objs(synthetic_strands, frame_idx=1)
+    synthetic_strands = scalp_strands
+    # quit()
+    # quit()
 
     # Make sure the number of strands are the same
     n_strands = min(scalp_strands.shape[0], synthetic_strands.shape[0])
     scalp_strands, synthetic_strands = scalp_strands[:n_strands], synthetic_strands[:n_strands]
+    #
+    # # Create initial positions and directions of scalp strands
+    # r0 = scalp_strands[:, 0]
+    # n0 = np.zeros((scalp_strands.shape[0], 3, 3))
+    # tangents = scalp_strands[:, 1] - scalp_strands[:, 0]
+    # for i in range(n0.shape[0]):
+    #     t = tangents[i]
+    #     u = Vector.compute_orthogonal_vec(t)
+    #     v = np.cross(t, u)
+    #     n0[i, 0] = t / np.linalg.norm(t)
+    #     n0[i, 1] = u / np.linalg.norm(u)
+    #     n0[i, 2] = v / np.linalg.norm(v)
+    #
+    # # Align the synthetic strands to the scalp strands
+    # aligned_synthetic_strands = synthetic_strands.copy()
+    # for i in range(n_strands):
+    #     strand = aligned_synthetic_strands[i]
+    #     # Root position, direction
+    #     strand_root = strand[0]
+    #     strand_dir = strand[-1] - strand_root
+    #     strand_dir = strand_dir / np.linalg.norm(strand_dir)
+    #     # Align the strand to the scalp strand
+    #     target_dir = n0[i, 0]
+    #     rot_axis = np.cross(strand_dir, target_dir)
+    #     rot_axis = rot_axis / np.linalg.norm(rot_axis)
+    #     rot_angle = np.arccos(np.dot(strand_dir, target_dir))
+    #     P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
+    #     P_i.normalize()
+    #     # Translate and rotate the strand
+    #     strand -= strand_root
+    #     for j in range(strand.shape[0]):
+    #         strand[j] = P_i.rotate_vec(strand[j])
+    #     strand += r0[i]
+    # strands_to_one_objs(aligned_synthetic_strands, frame_idx=2)
+    aligned_synthetic_strands = synthetic_strands
 
-    # Create initial positions and directions of scalp strands
-    r0 = scalp_strands[:, 0]
-    n0 = np.zeros((scalp_strands.shape[0], 3, 3))
-    tangents = scalp_strands[:, 1] - scalp_strands[:, 0]
-    for i in range(n0.shape[0]):
-        t = tangents[i]
-        u = Vector.compute_orthogonal_vec(t)
-        v = np.cross(t, u)
-        n0[i, 0] = t / np.linalg.norm(t)
-        n0[i, 1] = u / np.linalg.norm(u)
-        n0[i, 2] = v / np.linalg.norm(v)
-
-    # Align the synthetic strands to the scalp strands
-    aligned_synthetic_strands = synthetic_strands.copy()
-    for i in range(n_strands):
-        strand = aligned_synthetic_strands[i]
-        # Root position, direction
-        strand_root = strand[0]
-        strand_dir = strand[-1] - strand_root
-        strand_dir = strand_dir / np.linalg.norm(strand_dir)
-        # Align the strand to the scalp strand
-        target_dir = n0[i, 0]
-        rot_axis = np.cross(strand_dir, target_dir)
-        rot_axis = rot_axis / np.linalg.norm(rot_axis)
-        rot_angle = np.arccos(np.dot(strand_dir, target_dir))
-        P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
-        P_i.normalize()
-        # Translate and rotate the strand
-        strand -= strand_root
-        for j in range(strand.shape[0]):
-            strand[j] = P_i.rotate_vec(strand[j])
-        strand += r0[i]
-    strands_to_one_objs(aligned_synthetic_strands, frame_idx=2)
 
     # Simulation params
     n_sites = aligned_synthetic_strands.shape[1]
     n_edges = n_sites - 1
+
+    # Make edge lengths on average equal to 1 / n_sites
+    # aligned_synthetic_strands /= n_sites
+
     mass = np.ones(n_sites) * 1
     B = np.zeros((n_edges, 2, 2))
-    B[:, 0, 0] = B[:, 1, 1] = 1.0
-    beta = 0.1
+    B[:, 0, 0] = B[:, 1, 1] = 1e-6
+    beta = 1e-6
     k = 0.0
     g = 9.81 * 1e-3
-    damping = 0.01
+    damping = 0.2
     dt = 0.1
     xpbd_steps = 10
-    energies = [Gravity(), Twist(), Bend(), BendTwist()]
-    frozen_pos_indices = np.array([0, 1, 2])
-    frozen_theta_indices = np.array([0])
+    energies = [Gravity()]
+    frozen_pos_indices = np.array([0], dtype=int)
+    frozen_theta_indices = np.array([], dtype=int)
 
     poses = aligned_synthetic_strands.copy()
     thetas = np.zeros((n_strands, n_edges))
