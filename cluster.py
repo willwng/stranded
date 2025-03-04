@@ -158,7 +158,6 @@ def main():
             tau_std, bend1_std, bend2_std = (np.std(qs[:, 0::3], axis=0),
                                              np.std(qs[:, 1::3], axis=0),
                                              np.std(qs[:, 2::3], axis=0))
-            print(tau_std.shape)
             perturbed_helix = HelixUtil.copy_helix(helix)
             perturbed_q = perturbed_helix.q
             perturbed_q[0::3] += np.random.normal(0, tau_std)
@@ -190,10 +189,8 @@ def main():
     ax[2].set_ylabel("Bend 2")
     plt.show()
 
-    quit()
-
-    np.save("synthetic_strands.npy", strands_vis)
-    plt.show()
+    np.save("synthetic_strands.npy", converted_strands)
+    return
 
 
 if __name__ == "__main__":
