@@ -42,7 +42,7 @@ def main():
     fig, ax = plt.subplots(3, 1)
     for strand in tqdm(target_strands):
         helix = RodHelixConverter.rod_to_helix(strand, np.zeros(strand.shape[0] - 1))
-        helix = RodHelixConverter.rod_to_helix_pos(strand, helix.n0, helix.q)
+        helix = RodHelixConverter.rod_to_helix_pos(strand, helix.n0)
         for j in range(3):
             ax[j].plot(helix.q[j::3], color=f"C{j}")
             ax[j].set_xticks([0, helix.n_sites // 2, helix.n_sites])
