@@ -105,7 +105,7 @@ def main():
     for i in range(strands.shape[0]):
         strand = strands[i]
         # strand = RodHelixConverter.normalize_strand(strand, normalize_positions=False, normalize_direction=False, )
-        strand[:, 0] += 0.01 * (i % n_curl_strands)
+        strand[:, 0] += 0.02 * (i % n_curl_strands)
         strand[:, 2] *= -1
         # reverse order
         strand = strand[::-1]
@@ -122,8 +122,8 @@ def main():
         mean_x, mean_y = np.mean(strand[:, 0]), np.mean(strand[:, 1])
         strand[:, 0] = mean_x
         strand[:, 1] = mean_y
-        # Space out in z
-        # strand[:, 2] = np.linspace(np.min(strand[:, 2]), np.max(strand[:, 2]), strand.shape[0])
+        # Make min z 0
+        strand[:, 2] -= np.min(strand[:, 2])
         new_centerline_strands[i] = strand
     new_curl_strands = new_centerline_strands + diffs
     new_strands = np.concatenate((new_curl_strands, new_centerline_strands))
@@ -132,11 +132,15 @@ def main():
     helices = []
     qs = []
     fig, ax = plt.subplots(3, 1)
+    ax = ax.ravel()
     for curl_strand in new_curl_strands:
-        helix = RodHelixConverter.rod_to_helix(curl_strand, np.zeros(curl_strand.shape[0] - 1))
-        # helix.q = HelixUtil.smoothen(helix.q, helix.n_sites, k=3)
-        # helix.q = HelixUtil.smoothen(helix.q, helix.n_sites, k=5)
-        helix = RodHelixConverter.rod_to_helix_pos(curl_strand, helix.n0, helix.q)
+        # Solve for the first material frame
+        helix_init = RodHelixConverter.rod_to_helix(curl_strand, np.zeros(curl_strand.shape[0] - 1))
+        # Then solve for the arc lengths
+        s = RodHelixConverter.rod_to_helix_pos(curl_strand, n0=helix_init.n0, q_guess=helix_init.q).s
+        # Then, resolve the generalized coordinates
+        helix = RodHelixConverter.rod_to_helix(curl_strand, np.zeros(curl_strand.shape[0] - 1), s=s)
+        # Plot
         alpha = 0.3
         ax[0].plot(helix.q[0::3], color="C0", alpha=alpha)
         ax[1].plot(helix.q[1::3], color="C1", alpha=alpha)
@@ -144,6 +148,36 @@ def main():
         qs.append(helix.q)
         helices.append(helix)
     qs = np.array(qs)
+    print(qs.shape)
+
+    # Make some perturbations
+    perturbed_helices = [[] for _ in range(len(helices))]
+    n_perturbations = 10
+    for i, helix in enumerate(helices):
+        for _ in range(n_perturbations):
+            tau_std, bend1_std, bend2_std = (np.std(qs[:, 0::3], axis=0),
+                                             np.std(qs[:, 1::3], axis=0),
+                                             np.std(qs[:, 2::3], axis=0))
+            print(tau_std.shape)
+            perturbed_helix = HelixUtil.copy_helix(helix)
+            perturbed_q = perturbed_helix.q
+            perturbed_q[0::3] += np.random.normal(0, tau_std)
+            perturbed_q[1::3] += np.random.normal(0, bend1_std)
+            perturbed_q[2::3] += np.random.normal(0, bend2_std)
+            perturbed_helix.q = perturbed_q
+            perturbed_helices[i].append(perturbed_helix)
+
+    converted_strands = []
+    for i in range(len(helices)):
+        perturbed_helices_i = perturbed_helices[i]
+        orig_helix = helices[i]
+        for j, helix in enumerate(perturbed_helices_i + [orig_helix]):
+            helix.r0[1] += 0.01 * j
+            pos, theta = RodHelixConverter.helix_to_rod(helix)
+            converted_strands.append(pos)
+    converted_strands = np.array(converted_strands)
+
+    strands_to_one_objs(converted_strands, frame_idx=2, y_up=True)
 
     min_twist, min_bend1, min_bend2 = np.min(qs[:, 0::3]), np.min(qs[:, 1::3]), np.min(qs[:, 2::3])
     max_twist, max_bend1, max_bend2 = np.max(qs[:, 0::3]), np.max(qs[:, 1::3]), np.max(qs[:, 2::3])
@@ -154,181 +188,11 @@ def main():
     ax[0].set_ylabel("Twist")
     ax[1].set_ylabel("Bend 1")
     ax[2].set_ylabel("Bend 2")
-
-    helix_strands = []
-    for helix in helices:
-        pos, theta = RodHelixConverter.helix_to_rod(helix)
-        helix_strands.append(pos)
-        ax[0].plot(pos[:, 0], color="C0")
-        ax[1].plot(pos[:, 1], color="C1")
-        ax[2].plot(pos[:, 2], color="C2")
-    helix_strands = np.array(helix_strands)
-
-    strands_to_one_objs(helix_strands, frame_idx=2, y_up=True)
     plt.show()
 
     quit()
 
-    # Cluster strands using feature-based approach
-    labels = cluster_strands(strands)
-    visualize_clusters(strands, labels)
-
-    # Get all strands with label
-    target_label = 18
-    target_strands = strands[labels == target_label]
-    target_strands = np.array([target_strands[0]])
-    print(f"Found {target_strands.shape[0]} strands with label {target_label}")
-
-    fig, ax = plt.subplots(3, 1)
-    for i, strand in enumerate(target_strands):
-        alpha = 0.3 if i < target_strands.shape[0] - 1 else 1
-        ax[0].plot(strand[:, 0], color="C0", alpha=alpha)
-        ax[1].plot(strand[:, 1], color="C1", alpha=alpha)
-        ax[2].plot(strand[:, 2], color="C2", alpha=alpha)
-        labels = ["x", "y", "z"]
-        for j in range(3):
-            ax[j].set_xticks([0, strand.shape[0] // 2, strand.shape[0]])
-            ax[j].set_ylabel(labels[j])
-        ax[2].set_xlabel("Node index")
-    max_v = np.max(np.abs(target_strands))
-    ax[0].set_ylim([-max_v, max_v])
-    ax[1].set_ylim([-max_v, max_v])
-    ax[2].set_ylim([-max_v, max_v])
-    fig.suptitle("Original Strands")
-
-    # Look at the fft of the strands
-    fig, ax = plt.subplots(3, 1)
-    target_fft = np.zeros((len(target_strands), target_strands[0].shape[0], 3))
-    for i, strand in enumerate(target_strands):
-        alpha = 0.3 if i != 0 else 1
-        fft_x, fft_y, fft_z = fft(strand[:, 0]), fft(strand[:, 1]), fft(strand[:, 2])
-        target_fft[i, :, 0] = fft_x
-        target_fft[i, :, 1] = fft_y
-        target_fft[i, :, 2] = fft_z
-        ax[0].plot(np.abs(fft_x), color="C0", alpha=alpha)
-        ax[1].plot(np.abs(fft_y), color="C1", alpha=alpha)
-        ax[2].plot(np.abs(fft_z), color="C2", alpha=alpha)
-        labels = ["x", "y", "z"]
-        for j in range(3):
-            ax[j].set_xticks([0, strand.shape[0] // 2, strand.shape[0]])
-            ax[j].set_ylabel(labels[j])
-    # Set ax limits to maximum
-
-    # Look at the generalized coordinates
-    helices = []
-    for strand in target_strands[:1]:
-        helix = RodHelixConverter.rod_to_helix(strand, np.zeros(strand.shape[0] - 1))
-        K_inv = HelixUtil.compute_inv_pointwise_stiffness_matrix(helix)
-        B_gen = HelixUtil.compute_gen_force(helix, g=9.81 * 1e-3, rhoS=1.0 / helix.L, seed=1)
-        q_target = helix.q.copy()
-        q_rest = q_target[3:] - K_inv @ B_gen
-        q_rest = np.concatenate([q_target[:3], q_rest])
-        helix.q0 = q_rest.copy()
-        helix.q = q_rest
-        helices.append(helix)
-    # target_strands = [target_strands[0]]
-    fig, ax = plt.subplots(3, 1)
-    for i, helix in enumerate(helices):
-        alpha = 0.3 if i != 0 else 1
-        ax[0].plot(helix.q[0::3], color="C0", alpha=alpha)
-        ax[1].plot(helix.q[1::3], color="C1", alpha=alpha)
-        ax[2].plot(helix.q[2::3], color="C2", alpha=alpha)
-        labels = ["twist", "bend1", "bend2"]
-        for j in range(3):
-            ax[j].set_xticks([0, strand.shape[0] // 2, strand.shape[0]])
-            ax[j].set_ylabel(labels[j])
-
-    fig, ax = plt.subplots(3, 1)
-    all_fft = np.zeros((len(helices), helices[0].n_sites, 3))
-    for i, helix in enumerate(helices):
-        all_fft[i, :, 0] = (helix.q[0::3])
-        all_fft[i, :, 1] = (helix.q[1::3])
-        all_fft[i, :, 2] = (helix.q[2::3])
-        alpha = 0.3 if i != 0 else 1
-        ax[0].plot(helix.q[0::3], color="C0", alpha=alpha)
-        ax[1].plot(helix.q[1::3], color="C1", alpha=alpha)
-        ax[2].plot(helix.q[2::3], color="C2", alpha=alpha)
-        labels = ["twist", "bend1", "bend2"]
-        for j in range(3):
-            ax[j].set_xticks([0, strand.shape[0] // 2, strand.shape[0]])
-            ax[j].set_ylabel(labels[j])
-
-    # From one strand, create new strands by perturbing
-    new_strands = []
-
-    # for j in range(15):
-    #     base_strand = target_strands[0].copy()
-    #     base_x, base_y, base_z = fft(base_strand[:, 0]), fft(base_strand[:, 1]), fft(base_strand[:, 2])
-    #     window_size = 2
-    #     n_windows = base_strand.shape[0] // window_size
-    #     for i in range(n_windows):
-    #         start = i * window_size
-    #         end = (i + 1) * window_size
-    #         std_x, std_y, std_z = np.std(target_fft[:, start:end, 0]), np.std(target_fft[:, start:end, 1]), np.std(
-    #             target_fft[:, start:end, 2])
-    #         if i > 10:
-    #             std_x, std_y, std_z = 0.0, 0.0, 0.0
-    #         base_x[start:end] += np.random.normal(0, std_x, base_x[start:end].shape)
-    #         base_y[start:end] += np.random.normal(0, std_y, base_y[start:end].shape)
-    #         base_z[start:end] += np.random.normal(0, std_z, base_z[start:end].shape)
-    #     base_strand[:, 0] = ifft(base_x).real
-    #     base_strand[:, 1] = ifft(base_y).real
-    #     base_strand[:, 2] = ifft(base_z).real
-    #     new_strands.append(base_strand)
-
-    new_helices = []
-    base_helix = helices[0]
-    n_new_strands = 20
-    for j in range(0, n_new_strands):
-        helix_new = HelixUtil.copy_helix(base_helix)
-        q = helix_new.q
-        # Take fft of each dimension
-        fft_t, fft_k1, fft_k2 = (q[0::3]), (q[1::3]), (q[2::3])
-        # Perturb each
-        window_size = 16
-        n_windows = helix_new.n_sites // window_size
-        if j != 0:
-            for i in range(n_windows):
-                start = i * window_size
-                end = (i + 1) * window_size
-                std_t, std_k1, std_k2 = np.std(all_fft[:, start:end, 0]), np.std(all_fft[:, start:end, 1]), np.std(
-                    all_fft[:, start:end, 2])
-                fft_t[start:end] += np.random.normal(0, std_t, fft_t[start:end].shape)
-                fft_k1[start:end] += np.random.normal(0, std_k1, fft_k1[start:end].shape)
-                fft_k2[start:end] += np.random.normal(0, std_k2, fft_k2[start:end].shape)
-        # Inverse fft
-        q[0::3] = fft_t.real
-        q[1::3] = fft_k1.real
-        q[2::3] = fft_k2.real
-
-        new_helices.append(helix_new)
-
-    for helix in new_helices:
-        pos, theta = RodHelixConverter.helix_to_rod(helix)
-        new_strands.append(pos)
-
-    # --- post processing of new strands ---
-    new_strands = np.array(new_strands)
-    new_strands, centroids, directions = Preprocess.align_data(new_strands)
-    for i in range(new_strands.shape[0]):
-        strand = new_strands[i]
-        if strand[0, 2] > strand[-1, 2]:
-            strand[:, 2] = -strand[:, 2]
-        # strand[:, 0] += 20 * i + 10
-        new_strands[i] = strand
-    new_strands[:, :, 0] += 50
-
-    for i, strand in enumerate(target_strands):
-        strand[:, 1] -= 20 * i
-    for i, strand in enumerate(new_strands):
-        strand[:, 1] -= 20 * i
-
-    # Add all target strands
-    strands_vis = np.concatenate((target_strands, new_strands))
-    strands_to_one_objs(strands_vis, frame_idx=1)
-
     np.save("synthetic_strands.npy", strands_vis)
-
     plt.show()
 
 

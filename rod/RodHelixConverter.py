@@ -9,7 +9,7 @@ from rod.rod_util import RodUtil
 
 class RodHelixConverter:
     @staticmethod
-    def rod_to_helix(pos: np.ndarray, theta: np.ndarray) -> Helix:
+    def rod_to_helix(pos: np.ndarray, theta: np.ndarray, s: np.ndarray = None) -> Helix:
         """
         Converts a rod (explicit representation) to a helix (implicit representation)
         """
@@ -19,17 +19,27 @@ class RodHelixConverter:
         # Edge lengths and material frames of each edge
         e = pos[1:] - pos[:-1]
         edge_lengths = np.linalg.norm(e, axis=1)
+        # If arc length is not prescribed
+        if s is None:
+            s = np.cumsum(edge_lengths)
+            s = np.insert(s, 0, 0)
+        # Arc length of each ``edge''
+        arc = s[1:] - s[:-1]
         bishop_frame = RodUtil.compute_bishop_frames(pos=pos)
         material_frame = RodUtil.compute_material_frames(theta=theta, bishop_frame=bishop_frame)
 
         # Estimate n0 by interpolating back from the first two material frames
+        # First, gather the material frames of the first two edges
         m_prev, m_next = material_frame[0], material_frame[1]
         t_prev, t_next = e[0] / edge_lengths[0], e[1] / edge_lengths[1]
         edge_frame_prev, edge_frame_next = np.array([t_prev, m_prev[0], m_prev[1]]), np.array(
             [t_next, m_next[0], m_next[1]])
+        # Rotation goes from edge 0 -> edge 1
         rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
-        rotation = RotationUtil.interpolate_rotation(rotation, edge_lengths[0] / (edge_lengths[0] + edge_lengths[1]))
-        n0 = rotation @ edge_frame_prev
+        # Rotate from edge 0 -> node 0
+        rotation = RotationUtil.interpolate_rotation(rotation, arc[0] / (arc[0] + arc[1]))
+        rotation_inv = rotation.T
+        n0 = rotation_inv @ edge_frame_prev
 
         # For helices, we need to prescribe each site with a material frame
         site_material_frames = np.zeros((n_sites, 3, 3))
@@ -42,7 +52,7 @@ class RodHelixConverter:
             edge_frame_next = np.array([t_next, m_next[0], m_next[1]])
             # Interpolate the material frames (based on distance of node from edge centers)
             rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
-            inter_fraction = edge_lengths[i - 1] / (edge_lengths[i] + edge_lengths[i - 1])
+            inter_fraction = arc[i - 1] / (arc[i] + arc[i - 1])
             rotation = RotationUtil.interpolate_rotation(rotation, inter_fraction)
             site_material_frames[i] = rotation @ edge_frame_prev
             # Final site, just propagate forward
@@ -55,31 +65,31 @@ class RodHelixConverter:
             prev_frame = site_material_frames[i]
             next_frame = site_material_frames[i + 1]
             # Compute the Darboux vector
-            Omega = RotationUtil.compute_darboux_vector(prev_frame.T, next_frame.T, edge_lengths[i])
+            Omega = RotationUtil.compute_darboux_vector(prev_frame.T, next_frame.T, arc[i])
             # Compute curvatures through linear solve
             curvatures = np.linalg.solve(prev_frame.T, Omega)
             q[3 * i:3 * i + 3] = curvatures
 
         # Compute extra helix data
-        s = np.cumsum(edge_lengths)
+        s = np.cumsum(arc)
         s = np.insert(s, 0, 0)
-        L = np.sum(edge_lengths)
+        L = np.max(s)
         r0 = pos[0]
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray, q_guess) -> Helix:
+    def rod_to_helix_pos(pos: np.ndarray, n0: np.ndarray, q_guess: np.ndarray) -> Helix:
         """
         Converts a rod to a helix, ensuring the positions are preserved
         """
         n_sites = pos.shape[0]
-        q = np.zeros(3 * n_sites)
+        q = q_guess.copy()
 
         s = [0]
         r0 = pos[0]
         # Successively solve for the generalized coordinates
         n_L = n0.copy()
-        q_prev = np.random.rand(3)
+        q_prev = q_guess[:3]
         for i in range(1, n_sites):
             r_L = pos[i - 1]
 
@@ -132,23 +142,21 @@ class RodHelixConverter:
         s = np.cumsum(s)
         L = np.max(s)
 
-        # Solve again using least-squares over all coordinates but with arc length now fixed
-        r = np.zeros((n_sites, 3))
-        n = np.zeros((n_sites, 3, 3))
-
-        def rho(z):
-            return 2 * ((1 + z) ** 0.5 - 1)
-            # return z
-
-        def total_obj(qk):
-            HelixUtil.propagate_q(q=qk, n0=n0, r0=r0, n=n, r=r, s=s, n_sites=n_sites)
-            z = np.linalg.norm(r - pos, axis=1)
-            return np.sum(rho(z) ** 2)
-
-        # bla = HelixUtil.smoothen(q=bla, n_sites=n_sites, k=3)
-        # bla = HelixUtil.smoothen(q=bla, n_sites=n_sites, k=1)
-        res = minimize(total_obj, q_guess, method='L-BFGS-B', tol=1e-8, options={'disp': True})
-        q = res.x
+        # # Solve again using least-squares over all coordinates but with arc length now fixed
+        # r = np.zeros((n_sites, 3))
+        # n = np.zeros((n_sites, 3, 3))
+        #
+        # def rho(z):
+        #     return 2 * ((1 + z) ** 0.5 - 1)
+        #     # return z
+        #
+        # def total_obj(qk):
+        #     HelixUtil.propagate_q(q=qk, n0=n0, r0=r0, n=n, r=r, s=s, n_sites=n_sites)
+        #     z = np.linalg.norm(r - pos, axis=1)
+        #     return np.sum(rho(z) ** 2)
+        #
+        # res = minimize(total_obj, q_guess, method='L-BFGS-B', tol=1e-8, options={'disp': True})
+        # q = res.x
 
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
