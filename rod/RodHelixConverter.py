@@ -153,15 +153,16 @@ class RodHelixConverter:
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=np.ones(3 * n_sites))
 
     @staticmethod
-    def normalize_strand(pos, normalize_positions: bool = True, normalize_direction: bool = True):
+    def normalize_strand(pos, normalize_positions: bool, normalize_direction: bool, normalize_length: bool):
         if normalize_positions:
             # Translate node index 0 to origin
             pos -= pos[0]
 
-        # Make edge lengths on average equal to 1
-        e = pos[1:] - pos[:-1]
-        edge_lengths = np.linalg.norm(e, axis=1)
-        pos /= np.mean(edge_lengths)
+        if normalize_length:
+            # Make edge lengths on average equal to 1
+            e = pos[1:] - pos[:-1]
+            edge_lengths = np.linalg.norm(e, axis=1)
+            pos /= np.mean(edge_lengths)
 
         # Make strand point in the z-direction
         if normalize_direction:

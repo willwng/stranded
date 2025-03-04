@@ -225,3 +225,14 @@ class RodGenerator:
         new_vertices.append(vertices[-1])
         return np.array(new_vertices)
 
+    @staticmethod
+    def add_vertices_until(vertices: np.ndarray, target_num: int):
+        new_vertices = []
+        for i in range(target_num):
+            idx = i / (target_num - 1) * (len(vertices) - 1)
+            idx0 = int(np.floor(idx))
+            idx1 = int(np.ceil(idx))
+            fraction = idx - idx0
+            new_pos = (1 - fraction) * vertices[idx0] + fraction * vertices[idx1]
+            new_vertices.append(new_pos)
+        return np.array(new_vertices)
