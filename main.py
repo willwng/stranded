@@ -59,7 +59,7 @@ def strands_to_one_objs_fancy(strands: np.ndarray, thetas: np.ndarray, frame_idx
 
 
 def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None, y_up: bool = True):
-    output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
+    output_file = f"output/obj_big200/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.clear_output_file(output_file)
     vertex_offset = 1
     for strand in strands:
@@ -272,5 +272,5 @@ def step_wrapper(i, pos, theta, sim, n_steps=10):
 
 
 if __name__ == "__main__":
-    # main()
-    scalp()
+    main()
+    # scalp()
