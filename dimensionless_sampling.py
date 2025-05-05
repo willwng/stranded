@@ -1,13 +1,6 @@
 '''
 Script to sample curl parameters and produce many curl + centerline pairs for diffusion model training.
-Parameters sampled: curl radius {0.01, 2}, curl frequency {0.01, 2}
-Height scale is fixed to 0.5.
-
-TODO FINAL STRATEGY:
-- rescale all units to be compatible with masses = 1
-- with perturbations: {[config]: [perturbed strands], etc.}
-- without perturbations: {[config]: [unperturbed strands], etc.}
-- random sampling vs. grid sampling? (could store grid in rad x freq x twist x strand 4D array)
+All quantities re-scaled to be dimensionless, to be compatible with segment masses = 1
 '''
 
 import os
@@ -84,6 +77,12 @@ def main():
     height_scale = 0.5
     n=100
 
+    # Choosing characteristic scales
+    L0 = height_scale  # length scale = full strand height
+    M0 = 1.0           # segment mass already = 1
+    B0 = 0.01           # choose 1 or average of B1, B2
+    T0 = np.sqrt(M0 * L0**4 / B0)
+
     # Define parameter ranges
     param_bounds = np.array([
         [0.01, 1.5]                # radius (m)
@@ -92,14 +91,13 @@ def main():
     ])
 
     n_params = param_bounds.shape[0]
-    n_strands = 10 
+    n_strands = 100 
 
     sampler = qmc.LatinHypercube(d=n_params)
     lhs_sample = sampler.random(n=n_strands)
     scaled_samples = qmc.scale(lhs_sample, param_bounds[:,0], param_bounds[:,1])
 
     # moments for elliptical cross-sections
-    # NOT USING CURRENTLY - giving values of order 1e-8...
     a = 80e-6  # meters
     b = 40e-6  # meters
     E = 4.2e9  # Pascals = N/m^2
@@ -108,13 +106,28 @@ def main():
     B1 = E * I1  # bending modulus along one principal axis
     B2 = E * I2
 
+    B0 = 4.2e9 * (80e-6)**4  # scaling bending modulus
+
+    B1_nd = B1 / B0
+    B2_nd = B2 / B0
+
     beta = 0.1
     k = 0.0
-    g = 9.81e-3
+    # g = 9.81
+    g = 0.01 * (B0 / L0**2) # around 1% of elastic forces
     damping = 0.2
-    dt = 0.04
+    dt = 0.002
     xpbd_steps = 10
     energies = [Gravity(), Bend(), Twist(), BendTwist()]
+
+    # Rescaling
+    # g = 9.81 * T0**2 / L0 # nondimensionalized gravity
+    g=9.81e-3
+    print(f'g: {g}')
+    dt = 0.04 / T0
+    B1_scaled = B1 / B0
+    B2_scaled = B2 / B0 
+    print(B1_scaled, B2_scaled)
 
     poses, thetas = [], []
     sims = []
@@ -126,7 +139,7 @@ def main():
         print(r)
         f, tf = 0.7, 0.5
         strand_labels.append({'r': r, 'f': f, 'tf': tf})
-        pos, theta = RodGenerator.example_rod(n, r, f, height_scale)
+        pos, theta = RodGenerator.example_rod(n, r / L0, f, height_scale / L0)
         pos, theta = add_twist_tan(pos, theta, tf)
 
         pos[:, 1] -= pos[0, 1] # normalizing y
@@ -137,8 +150,8 @@ def main():
         mass = np.ones(n_sites) * 1
 
         B = np.zeros((n_edges, 2, 2))
-        B[:, 0, 0] = 1.0
-        B[:, 1, 1] = 1.0
+        B[:, 0, 0] = B1_nd
+        B[:, 1, 1] = B2_nd
         
         frozen_pos_indices = np.array([0], dtype=int)
         frozen_theta_indices = np.array([], dtype=int)
@@ -153,16 +166,16 @@ def main():
         sims.append(sim)
 
 
-    tracking_freq = 20
-    progress = tqdm(range(600 * tracking_freq))
-    for i in progress:
-        for j in range(n_strands):
-            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
-            poses[j] = pos
-            thetas[j] = theta
-        if i % tracking_freq == 0:
-            progress.set_description(f"Frame {i // tracking_freq}")
-            strands_to_one_objs(np.array(poses), i // tracking_freq)
+    # tracking_freq = 20
+    # progress = tqdm(range(600 * tracking_freq))
+    # for i in progress:
+    #     for j in range(n_strands):
+    #         pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+    #         poses[j] = pos
+    #         thetas[j] = theta
+    #     if i % tracking_freq == 0:
+    #         progress.set_description(f"Frame {i // tracking_freq}")
+    #         strands_to_one_objs(np.array(poses), i // tracking_freq)
 
     strands_to_one_objs(np.array(poses), 1)
     data_to_save = {
