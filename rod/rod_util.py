@@ -1,6 +1,6 @@
 import cupy as cp
 
-from math_util.quaternion import Quaternion
+from math_util.rotation import Quaternion
 from math_util.vectors import Vector
 
 
