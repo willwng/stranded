@@ -7,7 +7,7 @@ from tqdm import tqdm
 from energies.bend import Bend
 from energies.bend_twist import BendTwist
 from energies.gravity import Gravity
-from energies.random import RandomForce
+#from energies.random import RandomForce
 from energies.twist import Twist
 from math_util.rotation import RotationUtil, Quaternion
 from math_util.vectors import Vector
