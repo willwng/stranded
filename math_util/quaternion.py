@@ -1,6 +1,8 @@
-""" A barebones quaternion class """
-import numpy as np
-
+'''
+Future improvements?
+- modify to work with a batch of strands at once
+'''
+import cupy as cp
 
 class Quaternion:
     def __init__(self, w: float, x: float, y: float, z: float):
@@ -10,10 +12,10 @@ class Quaternion:
         self.z = z
 
     def length2(self) -> float:
-        return self.w ** 2 + self.x ** 2 + self.y ** 2 + self.z ** 2
+        return self.w**2 + self.x**2 + self.y**2 + self.z**2
 
     def length(self) -> float:
-        return np.sqrt(self.length2())
+        return cp.sqrt(self.length2())
 
     def inv_length(self) -> float:
         return 1.0 / self.length()
@@ -25,24 +27,27 @@ class Quaternion:
         self.y *= inv_l
         self.z *= inv_l
 
-    def rotate_vec(self, v: np.ndarray):
-        pure = np.array([self.x, self.y, self.z])
-        pure_x_v = np.cross(pure, v)
-        pure_x_pure_x_v = np.cross(pure, pure_x_v)
-        return v + 2.0 * ((pure_x_v * self.w) + pure_x_pure_x_v)
+    def rotate_vec(self, v: cp.ndarray) -> cp.ndarray:
+        """ Rotates a vector `v` using this quaternion """
+        pure = cp.array([self.x, self.y, self.z], dtype=cp.float64)
+        pure_x_v = cp.cross(pure, v)
+        pure_x_pure_x_v = cp.cross(pure, pure_x_v)
+        return v + 2.0 * (pure_x_v * self.w + pure_x_pure_x_v)
 
-    def __matmul__(self, other):
-        """ Overloads the @ operator to represent quaternion multiplication """
+    def __matmul__(self, other: cp.ndarray) -> cp.ndarray:
+        """ Overloads the @ operator to represent quaternion-vector multiplication """
         return self.rotate_vec(other)
 
     @staticmethod
-    def from_angle_axis(angle: float, axis: np.ndarray):
-        """
-        Returns a quaternion representing a rotation of angle about the axis
-        """
-        cos_half = np.cos(angle / 2)
-        sin_half = np.sin(angle / 2)
-        return Quaternion(cos_half, axis[0] * sin_half, axis[1] * sin_half, axis[2] * sin_half)
+    def from_angle_axis(angle: float, axis: cp.ndarray):
+        cos_half = cp.cos(angle / 2)
+        sin_half = cp.sin(angle / 2)
+        return Quaternion(
+            cos_half,
+            axis[0] * sin_half,
+            axis[1] * sin_half,
+            axis[2] * sin_half,
+        )
 
     @staticmethod
     def identity():
