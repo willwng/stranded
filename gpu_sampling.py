@@ -31,8 +31,8 @@ def strands_to_one_objs(strands: cp.ndarray, frame_idx: int, output_file: str = 
     return
 
 
-def add_twist_tan(pos, theta, twist_freq):  # remains NumPy
-    helix = RodHelixConverter.rod_to_helix(pos=cp.asnumpy(pos), theta=cp.asnumpy(theta))
+def add_twist_tan(pos, theta, twist_freq): # still c
+    helix = RodHelixConverter.rod_to_helix(pos=pos, theta=pos)
     num_twists = len(helix.q) // 3
     total_twists = int(twist_freq * num_twists)
     twist_indices = np.random.choice(np.arange(num_twists), size=total_twists, replace=False)
