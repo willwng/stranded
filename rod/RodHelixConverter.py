@@ -25,7 +25,8 @@ class RodHelixConverter:
         m_prev, m_next = material_frame[0], material_frame[1]
         t_prev, t_next = e[0] / edge_lengths[0], e[1] / edge_lengths[1]
         #edge_frame_prev = cp.stack([t_prev.ravel(), m_prev[0].ravel(), m_prev[1].ravel()])
-        edge_frame_next = cp.stack([t_prev, m_prev[0], m_prev[1]])
+        print(t_prev.shape, m_prev[0].shape, m_prev[1].shape)
+        edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]])
         edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
         #edge_frame_next = cp.stack([t_next.ravel(), m_next[0].ravel(), m_next[1].ravel()])
 
@@ -42,7 +43,7 @@ class RodHelixConverter:
             #edge_frame_prev = cp.stack([t_prev.ravel(), m_prev[0].ravel(), m_prev[1].ravel()])
             #edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
             #edge_frame_next = cp.stack([t_next.ravel(), m_next[0].ravel(), m_next[1].ravel()])
-            edge_frame_next = cp.stack([t_prev, m_prev[0], m_prev[1]])
+            edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]])
             edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
 
             rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
