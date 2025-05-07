@@ -11,7 +11,7 @@ class RodUtil:
 
     @staticmethod
     def compute_node_lengths(edge_lengths: cp.ndarray) -> cp.ndarray:
-        return cp.concatenate([cp.zeros(1), (edge_lengths[1:] + edge_lengths[:-1]) / 2])
+        return cp.concatenate([cp.zeros(1, dtype=edge_lengths.dtype), (edge_lengths[1:] + edge_lengths[:-1]) / 2])
 
     @staticmethod
     def compute_curvature_binormal(pos: cp.ndarray, rest_edge_lengths: cp.ndarray) -> tuple[cp.ndarray, cp.ndarray]:
@@ -20,7 +20,7 @@ class RodUtil:
         kb = cp.cross(2 * e_im1, e_i)
         den = (rest_edge_lengths[1:] * rest_edge_lengths[:-1] + Vector.inner_products(e_im1, e_i))
         kb /= den[:, None]
-        return cp.concatenate([cp.zeros((1, 3)), kb]), den
+        return cp.concatenate([cp.zeros((1, 3), dtype=kb.dtype), kb]), den
 
     @staticmethod
     def compute_material_frames(theta: cp.ndarray, bishop_frame: cp.ndarray):
@@ -44,24 +44,26 @@ class RodUtil:
 
         omega_i = cp.column_stack([omega_i1, omega_i2])
         omega_im1 = cp.column_stack([omega_im1_1, omega_im1_2])
-        omega_im1 = cp.concatenate([cp.zeros((1, 2)), omega_im1])
+        omega_im1 = cp.concatenate([cp.zeros((1, 2), dtype=omega_im1.dtype), omega_im1])
 
-        omegas = cp.zeros((omega_i.shape[0], 2, 2))
+        omegas = cp.zeros((omega_i.shape[0], 2, 2), dtype=omega_i.dtype)
         omegas[:, 0, :] = omega_im1
         omegas[:, 1, :] = omega_i
         return omegas
 
     @staticmethod
-    def update_bishop_frames(pos: cp.ndarray, bishop_frame: cp.ndarray) -> cp.ndarray:
+    def compute_bishop_frames(pos: cp.ndarray) -> cp.ndarray:
+        n_edges = pos.shape[0] - 1
+        bishop_frame = cp.zeros((n_edges, 2, 3), dtype=pos.dtype)
+
         t0 = pos[1] - pos[0]
         t0 /= cp.linalg.norm(t0)
         u = Vector.compute_orthogonal_vec(t0)
         v = cp.cross(t0, u)
         u, v = u / cp.linalg.norm(u), v / cp.linalg.norm(v)
-        bishop_frame[0] = cp.stack([u, v])
+        bishop_frame[0] = cp.array([u, v])
 
-        n = bishop_frame.shape[0]
-        for i in range(1, n):
+        for i in range(1, n_edges):
             t_i = pos[i + 1] - pos[i]
             t_im1 = pos[i] - pos[i - 1]
             t_i /= cp.linalg.norm(t_i)
@@ -72,26 +74,27 @@ class RodUtil:
             else:
                 rot_axis = cp.cross(t_im1, t_i)
                 rot_axis /= cp.linalg.norm(rot_axis)
-                rot_angle = cp.arccos(cp.clip(cp.dot(t_im1, t_i), -1.0, 1.0))
+                rot_angle = cp.arccos(cp.dot(t_im1, t_i))
                 P_i = Quaternion.from_angle_axis(rot_angle, rot_axis)
                 P_i.normalize()
 
             u = P_i.rotate_vec(u)
             v = cp.cross(t_i, u)
             u, v = u / cp.linalg.norm(u), v / cp.linalg.norm(v)
-            bishop_frame[i] = cp.stack([u, v])
+            bishop_frame[i] = cp.array([u, v])
+
         return bishop_frame
 
     @staticmethod
     def compute_nabla_kb(pos: cp.ndarray, kb: cp.ndarray, kb_den: cp.ndarray) -> cp.ndarray:
         e = pos[1:] - pos[:-1]
         e_skew_sym = Vector.skew_sym(e)
-        kb_i = kb[1:]
 
+        kb_i = kb[1:]
         kb_e_T = Vector.outer_products(kb_i, e[1:])
         num_im1 = 2 * e_skew_sym[1:] + kb_e_T
 
-        kb_em1_T = Vector.outer_products(kb_i, e[:-1])
+        kb_em1_T = Vector.outer_products(kb[1:], e[:-1])
         num_ip1 = 2 * e_skew_sym[:-1] - kb_em1_T
 
         nabla_im1 = num_im1 / kb_den[:, None, None]
@@ -99,7 +102,8 @@ class RodUtil:
         nabla_i = -(nabla_im1 + nabla_ip1)
 
         nabla_kb = cp.stack([nabla_im1, nabla_i, nabla_ip1], axis=1)
-        nabla_kb = cp.concatenate([cp.zeros((1, 3, 3, 3)), nabla_kb])
+        nabla_kb = cp.concatenate([cp.zeros((1, 3, 3, 3), dtype=nabla_kb.dtype), nabla_kb])
+
         return nabla_kb
 
     @staticmethod
@@ -107,6 +111,7 @@ class RodUtil:
         nabla_im1 = kb[1:] / (2 * rest_edge_lengths[:-1, None])
         nabla_ip1 = -kb[1:] / (2 * rest_edge_lengths[1:, None])
         nabla_i = -(nabla_im1 + nabla_ip1)
+
         nabla_psi = cp.stack([nabla_im1, nabla_i, nabla_ip1], axis=1)
-        nabla_psi = cp.concatenate([cp.zeros((1, 3, 3)), nabla_psi])
+        nabla_psi = cp.concatenate([cp.zeros((1, 3, 3), dtype=nabla_psi.dtype), nabla_psi])
         return nabla_psi
