@@ -2,7 +2,7 @@ import numpy as np
 import open3d as o3d
 
 class CL_Simulator:
-    def __init__(self, strands, radius=1.0, alpha=2.0, timestep=0.01, mass=1.0):
+    def __init__(self, strands, height_scale=0.5, radius=1.0, alpha=2.0, timestep=0.01, mass=1.0):
         """
         strands: (N_strands, N_points, 3) array of initial positions
         """
@@ -11,6 +11,7 @@ class CL_Simulator:
         self.alpha = alpha
         self.timestep = timestep
         self.mass = mass
+        self.height_scale = height_scale
 
         self.num_strands, self.num_points, _ = strands.shape
         self.num_total_points = self.num_strands * self.num_points
@@ -54,13 +55,13 @@ class CL_Simulator:
         return neighbors
 
     def compute_force(self, idx: int) -> np.ndarray:
-        q  = self.positions[idx]
+        q = self.positions[idx]
         sid = self.point_strand_ids[idx]
-        s   = self.arc_lengths[idx]
+        s = self.arc_lengths[idx]
 
         # root‑to‑tip amplification (α > 0)
-        L      = self.strand_lengths[sid]
-        decay  = np.exp(self.alpha * (s / L))          # 1 at root → e^{α} at tip
+        strand_length = (self.num_points - 1) * self.height_scale
+        decay = np.exp(self.alpha * (s / strand_length)) # 1 at root → e^{α} at tip
 
         # neighbour query
         nbrs = self.collect_neighbors(q)
