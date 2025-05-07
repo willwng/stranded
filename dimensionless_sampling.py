@@ -166,16 +166,16 @@ def main():
         sims.append(sim)
 
 
-    # tracking_freq = 20
-    # progress = tqdm(range(600 * tracking_freq))
-    # for i in progress:
-    #     for j in range(n_strands):
-    #         pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
-    #         poses[j] = pos
-    #         thetas[j] = theta
-    #     if i % tracking_freq == 0:
-    #         progress.set_description(f"Frame {i // tracking_freq}")
-    #         strands_to_one_objs(np.array(poses), i // tracking_freq)
+    tracking_freq = 20
+    progress = tqdm(range(600 * tracking_freq))
+    for i in progress:
+        for j in range(n_strands):
+            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+            poses[j] = pos
+            thetas[j] = theta
+        if i % tracking_freq == 0:
+            progress.set_description(f"Frame {i // tracking_freq}")
+            strands_to_one_objs(np.array(poses), i // tracking_freq)
 
     strands_to_one_objs(np.array(poses), 1)
     data_to_save = {
