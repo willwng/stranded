@@ -1,5 +1,5 @@
 import cupy as cp
-from cupyx.scipy.optimize import minimize
+#from cupyx.scipy.optimize import minimize
 
 from math_util.rotation import RotationUtil, Quaternion
 from rod.helix import Helix

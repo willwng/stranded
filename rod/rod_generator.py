@@ -7,10 +7,11 @@ class RodGenerator:
     def example_rod(n: int, curl_radius=1.0, curl_frequency=1.0, height_scale=0.2):
         vertices = []
         for i in range(n + 2):
+            i_cp = cp.asarray(i, dtype=cp.float64)
             pos = cp.array([
-                curl_radius * cp.cos(curl_frequency * i),
-                curl_radius * cp.sin(curl_frequency * i),
-                height_scale * i
+                curl_radius * cp.cos(curl_frequency * i_cp),
+                curl_radius * cp.sin(curl_frequency * i_cp),
+                height_scale * i_cp
             ], dtype=cp.float64)
             vertices.append(pos)
 
