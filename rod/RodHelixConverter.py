@@ -26,8 +26,8 @@ class RodHelixConverter:
         t_prev, t_next = e[0] / edge_lengths[0], e[1] / edge_lengths[1]
         t_prev_broadcasted = cp.broadcast_to(t_prev, (101, 3))
         t_next_broadcasted = cp.broadcast_to(t_next, (101, 3))
-        edge_frame_prev = cp.stack([t_prev_broadcasted, m_prev[0], m_prev[1]], axis=0)
-        edge_frame_next = cp.stack([t_next_broadcasted, m_next[0], m_next[1]])
+        edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]], axis=1)  # (101, 3, 3)
+        edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]], axis=1)  # (101, 3, 3)
 
         rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
         rotation = RotationUtil.interpolate_rotation(rotation, arc[0] / (arc[0] + arc[1]))
@@ -41,8 +41,8 @@ class RodHelixConverter:
             
             t_prev_broadcasted = cp.broadcast_to(t_prev, (101, 3))
             t_next_broadcasted = cp.broadcast_to(t_next, (101, 3))
-            edge_frame_prev = cp.stack([t_prev_broadcasted, m_prev[0], m_prev[1]], axis=0)
-            edge_frame_next = cp.stack([t_next_broadcasted, m_next[0], m_next[1]])
+            edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]], axis=1)  # (101, 3, 3)
+            edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]], axis=1)  # (101, 3, 3)
 
             rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
             inter_fraction = arc[i - 1] / (arc[i] + arc[i - 1])

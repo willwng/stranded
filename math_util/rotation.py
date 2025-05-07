@@ -49,7 +49,9 @@ class RotationUtil:
     @staticmethod
     def compute_rotation_matrix(basis1: cp.ndarray, basis2: cp.ndarray) -> cp.ndarray:
         """ Computes the rotation matrix that maps basis1 to basis2. Assumes orthonormal rows. """
-        return basis2 @ basis1.T
+        #return basis2 @ basis1.T
+        return basis2 @ basis1.transpose(0, 2, 1)
+
 
     @staticmethod
     def interpolate_rotation(R: cp.ndarray, t: float) -> cp.ndarray:
