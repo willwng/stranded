@@ -17,7 +17,7 @@ class RodHelixConverter:
         edge_lengths = cp.linalg.norm(e, axis=1)
         if s is None:
             s = cp.cumsum(edge_lengths)
-            s = cp.insert(s, 0, 0)
+            s = cp.concatenate([cp.array([0], dtype=s.dtype), s])
         arc = s[1:] - s[:-1]
         bishop_frame = RodUtil.compute_bishop_frames(pos)
         material_frame = RodUtil.compute_material_frames(theta, bishop_frame)
@@ -52,7 +52,7 @@ class RodHelixConverter:
             q[3 * i:3 * i + 3] = curvatures
 
         s = cp.cumsum(arc)
-        s = cp.insert(s, 0, 0)
+        s = cp.concatenate([cp.array([0], dtype=s.dtype), s])
         L = cp.max(s)
         r0 = pos[0]
         return Helix(q=q, q0=q.copy(), n_sites=n_sites, s=s, L=L, r0=r0, n0=n0, EI=cp.ones(3 * n_sites))
