@@ -24,11 +24,10 @@ class RodHelixConverter:
 
         m_prev, m_next = material_frame[0], material_frame[1]
         t_prev, t_next = e[0] / edge_lengths[0], e[1] / edge_lengths[1]
-        #edge_frame_prev = cp.stack([t_prev.ravel(), m_prev[0].ravel(), m_prev[1].ravel()])
-        print(t_prev.shape, m_prev[0].shape, m_prev[1].shape)
-        edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]])
-        edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
-        #edge_frame_next = cp.stack([t_next.ravel(), m_next[0].ravel(), m_next[1].ravel()])
+        t_prev_broadcasted = cp.broadcast_to(t_prev, (101, 3))
+        t_next_broadcasted = cp.broadcast_to(t_next, (101, 3))
+        edge_frame_prev = cp.stack([t_prev_broadcasted, m_prev[0], m_prev[1]], axis=0)
+        edge_frame_next = cp.stack([t_next_broadcasted, m_next[0], m_next[1]])
 
         rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
         rotation = RotationUtil.interpolate_rotation(rotation, arc[0] / (arc[0] + arc[1]))
@@ -39,12 +38,11 @@ class RodHelixConverter:
         for i in range(1, n_sites - 1):
             m_prev, m_next = material_frame[i - 1], material_frame[i]
             t_prev, t_next = e[i - 1] / edge_lengths[i - 1], e[i] / edge_lengths[i]
-            #edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]])
-            #edge_frame_prev = cp.stack([t_prev.ravel(), m_prev[0].ravel(), m_prev[1].ravel()])
-            #edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
-            #edge_frame_next = cp.stack([t_next.ravel(), m_next[0].ravel(), m_next[1].ravel()])
-            edge_frame_prev = cp.stack([t_prev, m_prev[0], m_prev[1]])
-            edge_frame_next = cp.stack([t_next, m_next[0], m_next[1]])
+            
+            t_prev_broadcasted = cp.broadcast_to(t_prev, (101, 3))
+            t_next_broadcasted = cp.broadcast_to(t_next, (101, 3))
+            edge_frame_prev = cp.stack([t_prev_broadcasted, m_prev[0], m_prev[1]], axis=0)
+            edge_frame_next = cp.stack([t_next_broadcasted, m_next[0], m_next[1]])
 
             rotation = RotationUtil.compute_rotation_matrix(edge_frame_prev, edge_frame_next)
             inter_fraction = arc[i - 1] / (arc[i] + arc[i - 1])
