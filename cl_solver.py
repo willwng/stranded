@@ -11,6 +11,7 @@ class CL_Simulator:
         self.alpha = alpha
         self.timestep = timestep
         self.mass = mass
+        self.inv_mass = np.full((strands.shape[1] * strands.shape[0]), 1 / mass)
         self.height_scale = height_scale
 
         self.num_strands, self.num_points, _ = strands.shape
@@ -20,8 +21,29 @@ class CL_Simulator:
         self.positions = strands.reshape(-1, 3).copy()
         self.velocities = np.zeros_like(self.positions)
 
+        # Finding edges, rest_lengths, and root indices
+        edges        = []          # (m, 2) indices of neighbouring points
+        rest_lengths = []          # (m,) target segment lengths
+        root_idx     = []          # list of point indices you want fixed
+
+        for strand_idx, strand in enumerate(strands):
+            root_idx.append(strand_idx * self.num_points)  # global index of first point
+            for i in range(self.num_points - 1):
+                a = strand_idx * self.num_points + i
+                b = strand_idx * self.num_points + i + 1
+                edges.append((a, b))
+                rest_lengths.append(np.linalg.norm(strand[i + 1] - strand[i]))
+
+        edges = np.asarray(edges, dtype=np.int32)
+        rest_lengths = np.asarray(rest_lengths, dtype=np.float64)
+        root_idx = np.asarray(root_idx, dtype=np.int32)
+
+        self.rest_lengths = rest_lengths
+        self.edges = edges
+        self.root_idx = root_idx
+
         # Precompute arc lengths
-        self.arc_lengths = self.precompute_arc_lengths()
+        self.arc_lengths = self.precompute_arc_lengths() # arc length is cumulative, rest_lengths are deltas btwn two points
 
         # Build strand ID map
         self.point_strand_ids = np.repeat(np.arange(self.num_strands), self.num_points)
@@ -84,13 +106,46 @@ class CL_Simulator:
         diff   = diff[good]
         mag    = np.sqrt(mag2[good])
 
-        direction = diff / mag[:, None]               # unit vectors
-        weight    =  10 * mag                               # linear growth kernel
+        direction = diff / mag[:, None] # unit vectors
+        weight    =  10 * mag # linear growth kernel
 
         force_vec = -(weight[:, None] * direction).sum(0)
         return decay * force_vec
+    
+    def xpbd_project(pos_pred, edges, rest_lengths,
+                inv_mass,  # (N,) inverse masses; 0 for pinned roots
+                dt, comp,  # comp = compliance (0 ⇒ perfectly rigid)
+                n_iter=8):
+
+        lambdas = np.zeros(len(edges))     # Lagrange multipliers
+
+        alpha   = comp / dt**2             # "compliance" term
+        for _ in range(n_iter):
+            for c, (i, j) in enumerate(edges):
+                xi, xj   = pos_pred[i], pos_pred[j]
+                diff     = xi - xj
+                dist     = np.linalg.norm(diff)
+                if dist == 0.:             # degenerate
+                    continue
+
+                C        = dist - rest_lengths[c]
+                grad     = diff / dist
+                w_sum    = inv_mass[i] + inv_mass[j]
+                if w_sum == 0.:
+                    continue               # both points pinned
+
+                # XPBD delta‑lambda update
+                dl       = (-C - alpha * lambdas[c]) / (w_sum + alpha)
+                lambdas[c] += dl
+
+                corr     = dl * grad
+                pos_pred[i] += inv_mass[i] * corr
+                pos_pred[j] -= inv_mass[j] * corr
 
     def step(self):
+        dt = self.timestep
+        N = self.num_total_points
+
         # Update octree with current positions
         self.pcd.points = o3d.utility.Vector3dVector(self.positions)
         self.octree.clear()
@@ -101,9 +156,20 @@ class CL_Simulator:
         for i in range(self.num_total_points):
             forces[i] = self.compute_force(i)
 
+        # semi implicit velocity update
+        print(self.inv_mass)
+        self.velocities += dt * forces * self.inv_mass[:, None]   # inv_mass = 1/m
+        pos_pred = self.positions + dt * self.velocities
+
+        # pinning roots by setting inv_mass = 0
+        self.inv_mass[self.root_idx] = 0.0
+
+        # constraint solve for inextensitiliby
+        xpbd_project(pos_pred, self.edges, self.rest_lengths, self.inv_mass, dt, comp=0.0, n_iter=8)
+
         # Semi-implicit Euler update
-        self.velocities += self.timestep * forces / self.mass
-        self.positions += self.timestep * self.velocities
+        self.velocities = (pos_pred - self.positions) / dt
+        self.positions = pos_pred
 
     def run(self, num_steps=100):
         for _ in range(num_steps):
@@ -111,3 +177,23 @@ class CL_Simulator:
 
     def get_strands(self):
         return self.positions.reshape(self.num_strands, self.num_points, 3)
+    
+    def extensibility_check(self):
+        # current positions of each edge’s two endpoints
+        p0 = self.positions[self.edges[:, 0]]
+        p1 = self.positions[self.edges[:, 1]]
+
+        # current edge lengths
+        curr_len = np.linalg.norm(p0 - p1, axis=1)  # (m,)
+
+        # absolute and relative errors
+        abs_err  = curr_len - self.rest_lengths
+        rel_err  = abs_err / self.rest_lengths
+
+        max_abs  = np.max(np.abs(abs_err))
+        max_rel  = np.max(np.abs(rel_err))
+
+        # Option A: return a tuple for flexible logging
+        return max_abs, max_rel
+   
+

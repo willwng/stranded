@@ -8,9 +8,9 @@ class RodGenerator:
     def example_rod(n: int):
         # n + 2 vertices
         vertices = []
-        curl_radius = 1.0
+        curl_radius = 0.2 #1.0
         curl_frequency = 1.0
-        height_scale = 0.2
+        height_scale = 1.0 #0.2
         for i in range(n + 2):
             pos = np.array(
                 [curl_radius * np.cos(curl_frequency * i), curl_radius * np.sin(curl_frequency * i), height_scale * i],
