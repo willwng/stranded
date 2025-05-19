@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import time
 import numpy as np
 from tqdm import tqdm
@@ -96,7 +96,7 @@ def main():
         pos, theta = sim.step(pos=pos, theta=theta)
     print(f"Time: {time.time() - start:.2f}s")
 
-    plt.show()
+    # plt.show()
     return
 
 
