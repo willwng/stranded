@@ -155,25 +155,25 @@ def main():
         sims.append(sim)
 
 
-    # tracking_freq = 20
-    # progress = tqdm(range(600 * tracking_freq))
-    # for i in progress:
-    #     for j in range(n_strands):
-    #         pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
-    #         poses[j] = pos
-    #         thetas[j] = theta
-    #     if i % tracking_freq == 0:
-    #         progress.set_description(f"Frame {i // tracking_freq}")
-    #         strands_to_one_objs(np.array(poses), i // tracking_freq)
+    tracking_freq = 20
+    progress = tqdm(range(600 * tracking_freq))
+    for i in progress:
+        for j in range(n_strands):
+            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+            poses[j] = pos
+            thetas[j] = thetagit
+        if i % tracking_freq == 0:
+            progress.set_description(f"Frame {i // tracking_freq}")
+            strands_to_one_objs(np.array(poses), i // tracking_freq)
 
-    # strands_to_one_objs(np.array(poses), 1)
-    # data_to_save = {
-    #     'poses': poses,  # list of numpy arrays
-    #     'labels': strand_labels  # list of dicts
-    # }
+    strands_to_one_objs(np.array(poses), 1)
+    data_to_save = {
+        'poses': poses,  # list of numpy arrays
+        'labels': strand_labels  # list of dicts
+    }
 
-    # np.save("100_freq_samples.npy", data_to_save, allow_pickle=True)
-    # return
+    np.save("100_freq_samples.npy", data_to_save, allow_pickle=True)
+    return
 
 def step_wrapper(i, pos, theta, sim, n_steps=10):
     for _ in range(n_steps):
