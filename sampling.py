@@ -49,7 +49,7 @@ from visualization.visualizer import Visualizer
 #     return
 
 def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None, y_up: bool = True):
-    output_file = f"output/sampling_scratch/obj_{frame_idx}.obj" if output_file is None else output_file
+    output_file = f"output/100_freq_samples/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.clear_output_file(output_file)
     vertex_offset = 1
     for strand in strands:
@@ -82,17 +82,17 @@ def add_twist_tan(pos, theta, twist_freq): # twist_freq in units 1/length
     
 def main(): 
     height_scale = 0.5
-    n=100
+    n=50
 
     # Define parameter ranges
     param_bounds = np.array([
-        [0.01, 1.5]                # radius (m)
-        #[0.2, 0.2], #[0.01, 1.0],         # frequency (m^-1)
+        #[0.01, 1.5]                # radius (m)
+        [0.01, 0.99], #[0.01, 1.0],         # frequency (m^-1)
         #[0.5, 0.5] # [0.1, 1.0]          # twist frequency (m^-1)
     ])
 
     n_params = param_bounds.shape[0]
-    n_strands = 10 
+    n_strands = 100 
 
     sampler = qmc.LatinHypercube(d=n_params)
     lhs_sample = sampler.random(n=n_strands)
@@ -112,7 +112,7 @@ def main():
     k = 0.0
     g = 9.81e-3
     damping = 0.2
-    dt = 0.04
+    dt = 0.08 #0.04
     xpbd_steps = 10
     energies = [Gravity(), Bend(), Twist(), BendTwist()]
 
@@ -122,9 +122,10 @@ def main():
     strand_labels = []
 
     for i, sample in enumerate(scaled_samples):
-        r = sample.item(0)
-        print(r)
-        f, tf = 0.7, 0.5
+        f = sample.item(0)
+        print(f)
+        # f, tf = 0.7, 0.5
+        r, tf = 1.0, 0.5
         strand_labels.append({'r': r, 'f': f, 'tf': tf})
         pos, theta = RodGenerator.example_rod(n, r, f, height_scale)
         pos, theta = add_twist_tan(pos, theta, tf)
@@ -170,7 +171,7 @@ def main():
         'labels': strand_labels  # list of dicts
     }
 
-    np.save("100_sample2_with_labels.npy", data_to_save, allow_pickle=True)
+    np.save("100_freq_samples.npy", data_to_save, allow_pickle=True)
     return
 
 def step_wrapper(i, pos, theta, sim, n_steps=10):
