@@ -49,7 +49,7 @@ from visualization.visualizer import Visualizer
 #     return
 
 def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = None, y_up: bool = True):
-    output_file = f"output/obj/obj_{frame_idx}.obj" if output_file is None else output_file
+    output_file = f"output/100_rad_freq_samples/obj_{frame_idx}.obj" if output_file is None else output_file
     Visualizer.clear_output_file(output_file)
     vertex_offset = 1
     for strand in strands:
@@ -86,13 +86,13 @@ def main():
 
     # Define parameter ranges
     param_bounds = np.array([
-        #[0.01, 1.5]                # radius (m)
-        [0.01, 0.99], #[0.01, 1.0],         # frequency (m^-1)
+        [0.01, 1.5],                       # radius (m)
+        [0.01, 0.99] #[0.01, 1.0],       # curl frequency (m^-1)
         #[0.5, 0.5] # [0.1, 1.0]          # twist frequency (m^-1)
     ])
 
     n_params = param_bounds.shape[0]
-    n_strands = 1 
+    n_strands = 100
 
     sampler = qmc.LatinHypercube(d=n_params)
     lhs_sample = sampler.random(n=n_strands)
@@ -122,10 +122,10 @@ def main():
     strand_labels = []
 
     for i, sample in enumerate(scaled_samples):
-        f = sample.item(0)
-        print(f)
+        r, f = sample
+        print(r, f)
         # f, tf = 0.7, 0.5
-        r, f, tf = 1.0, 0.7, 0.0
+        tf = 0.7
         strand_labels.append({'r': r, 'f': f, 'tf': tf})
         pos, theta = RodGenerator.example_rod(n, r, f, height_scale)
         pos, theta = add_twist_tan(pos, theta, tf)
@@ -161,7 +161,7 @@ def main():
         for j in range(n_strands):
             pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
             poses[j] = pos
-            thetas[j] = thetagit
+            thetas[j] = theta
         if i % tracking_freq == 0:
             progress.set_description(f"Frame {i // tracking_freq}")
             strands_to_one_objs(np.array(poses), i // tracking_freq)

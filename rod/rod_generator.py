@@ -5,11 +5,7 @@ class RodGenerator:
     """ A class for generating rods """
 
     @staticmethod
-<<<<<<< HEAD
-    def example_rod(n: int, curl_radius=1.5, curl_frequency=0.9, height_scale=0.5):
-=======
     def example_rod(n: int, curl_radius=1.5, curl_frequency=0.3, height_scale=0.5):
->>>>>>> d646f8e9c7933f3c3bf618c8c6ca8abbce96427a
         # n + 2 vertices
         vertices = []
         for i in range(n + 2):
