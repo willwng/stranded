@@ -43,7 +43,7 @@ class CLSimulator:
         roots = np.asarray(roots)
 
         values = np.zeros(roots.shape[0])
-        offsets = np.linspace(-0.1, 1.0, num=12)
+        offsets = np.linspace(-0.1, 1.0, num=24)
         normals = np.stack(roots, axis=1) # for now, just approx. sphere at (0, 0, 0)
 
         all_points = []
