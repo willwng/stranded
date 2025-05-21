@@ -86,9 +86,9 @@ def main():
 
     # Define parameter ranges
     param_bounds = np.array([
-        [0.01, 1.5],                       # radius (m)
-        [0.01, 0.99] #[0.01, 1.0],       # curl frequency (m^-1)
-        #[0.5, 0.5] # [0.1, 1.0]          # twist frequency (m^-1)
+        # [0.01, 1.5],                       # radius (m)
+        # [0.01, 0.99] #[0.01, 1.0],       # curl frequency (m^-1)
+        [0.01, 0.99] # [0.1, 1.0]          # twist frequency (m^-1)
     ])
 
     n_params = param_bounds.shape[0]
@@ -122,10 +122,10 @@ def main():
     strand_labels = []
 
     for i, sample in enumerate(scaled_samples):
-        r, f = sample
-        print(r, f)
+        tf = sample.item(0)
+        print(tf)
         # f, tf = 0.7, 0.5
-        tf = 0.7
+        r, f = 1.5, 0.3
         strand_labels.append({'r': r, 'f': f, 'tf': tf})
         pos, theta = RodGenerator.example_rod(n, r, f, height_scale)
         pos, theta = add_twist_tan(pos, theta, tf)
@@ -172,7 +172,7 @@ def main():
         'labels': strand_labels  # list of dicts
     }
 
-    np.save("100_freq_samples.npy", data_to_save, allow_pickle=True)
+    np.save("100_twist_samples.npy", data_to_save, allow_pickle=True)
     return
 
 def step_wrapper(i, pos, theta, sim, n_steps=10):
