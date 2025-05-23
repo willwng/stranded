@@ -82,7 +82,7 @@ def add_twist_tan(pos, theta, twist_freq): # twist_freq in units 1/length
     
 def main(): 
     height_scale = 0.5
-    n=50
+    n=100
 
     # Define parameter ranges
     param_bounds = np.array([
