@@ -129,7 +129,7 @@ class Sim:
         self.state.nabla_kb = RodUtil.compute_nabla_kb(pos=pos, kb=self.state.kb, kb_den=self.state.kb_den)
         self.state.nabla_psi = RodUtil.compute_nabla_psi(kb=self.state.kb, rest_edge_lengths=self.init_state.l_bar_edge)
         return
-
+    
     def quasistatic_update(self, pos: np.ndarray, theta: np.ndarray):
         """ Minimizes the energy with respect to theta (except theta of the first edge) """
         # Clamp/fix theta for the first edge

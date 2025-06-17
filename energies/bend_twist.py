@@ -75,4 +75,5 @@ class BendTwist(Energy):
             grads_nz = np.sum(grads_nz, axis=(0, 1))
             grad[i] += grads_nz
 
+        # return grad
         return grad

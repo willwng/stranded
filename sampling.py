@@ -32,6 +32,8 @@ from rod.rod_generator import RodGenerator
 from rod.rod_util import RodUtil
 from solver.sim import Sim
 from visualization.visualizer import Visualizer
+from concurrent.futures import ProcessPoolExecutor
+
 
 # def create_frame(pos: np.ndarray,
 #                  material_frame: np.ndarray,
@@ -88,11 +90,11 @@ def main():
     param_bounds = np.array([
         # [0.01, 1.5],                       # radius (m)
         # [0.01, 0.99] #[0.01, 1.0],       # curl frequency (m^-1)
-        [0.01, 0.99] # [0.1, 1.0]          # twist frequency (m^-1)
+        [0.01, 0.3] # [0.1, 1.0]          # twist frequency (m^-1)
     ])
 
     n_params = param_bounds.shape[0]
-    n_strands = 100
+    n_strands = 1
 
     sampler = qmc.LatinHypercube(d=n_params)
     lhs_sample = sampler.random(n=n_strands)
@@ -100,13 +102,13 @@ def main():
 
     # moments for elliptical cross-sections
     # NOT USING CURRENTLY - giving values of order 1e-8...
-    a = 80e-6  # meters
-    b = 40e-6  # meters
-    E = 4.2e9  # Pascals = N/m^2
-    I1 = (np.pi * a * b**3) / 4
-    I2 = (np.pi * a**3 * b) / 4
-    B1 = E * I1  # bending modulus along one principal axis
-    B2 = E * I2
+    # a = 80e-6  # meters
+    # b = 40e-6  # meters
+    # E = 4.2e9  # Pascals = N/m^2
+    # I1 = (np.pi * a * b**3) / 4
+    # I2 = (np.pi * a**3 * b) / 4
+    # B1 = E * I1  # bending modulus along one principal axis
+    # B2 = E * I2
 
     beta = 0.1
     k = 0.0
@@ -129,6 +131,7 @@ def main():
         strand_labels.append({'r': r, 'f': f, 'tf': tf})
         pos, theta = RodGenerator.example_rod(n, r, f, height_scale)
         pos, theta = add_twist_tan(pos, theta, tf)
+        theta = np.clip(theta, -np.pi, np.pi)
 
         pos[:, 1] -= pos[0, 1] # normalizing y
         pos[:, 2] -= pos[0, 2] # normalizing z
@@ -154,17 +157,27 @@ def main():
         thetas.append(theta)
         sims.append(sim)
 
-
     tracking_freq = 20
     progress = tqdm(range(600 * tracking_freq))
-    for i in progress:
-        for j in range(n_strands):
-            pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
-            poses[j] = pos
-            thetas[j] = theta
-        if i % tracking_freq == 0:
-            progress.set_description(f"Frame {i // tracking_freq}")
-            strands_to_one_objs(np.array(poses), i // tracking_freq)
+    # for i in progress:
+    #     for j in range(n_strands):
+    #         pos, theta = sims[j].step(pos=poses[j], theta=thetas[j])
+    #         poses[j] = pos
+    #         thetas[j] = theta
+    #     if i % tracking_freq == 0:
+    #         progress.set_description(f"Frame {i // tracking_freq}")
+    #         strands_to_one_objs(np.array(poses), i // tracking_freq)
+    with ProcessPoolExecutor() as executor:
+        for i in progress:
+            futures = [executor.submit(step_wrapper, j, poses[j], thetas[j], sims[j], n_steps=1) for j in range(n_strands)]
+            results = [f.result() for f in futures]
+            for j, pos, theta, sim in results:
+                poses[j] = pos
+                thetas[j] = theta
+
+            if i % tracking_freq == 0:
+                progress.set_description(f"Frame {i // tracking_freq}")
+                strands_to_one_objs(np.array(poses), i // tracking_freq + 1)
 
     strands_to_one_objs(np.array(poses), 1)
     data_to_save = {
