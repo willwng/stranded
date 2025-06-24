@@ -1,5 +1,5 @@
 '''
-Script to sample curl parameters and produce many curl + centerline pairs for diffusion model training.
+Script to sample curl parameter space of curl radius, curl wavelength, and twist prevalence.
 '''
 
 import os
@@ -38,35 +38,26 @@ def strands_to_one_objs(strands: np.ndarray, frame_idx: int, output_file: str = 
         vertex_offset = Visualizer.to_simple_obj(pos=pos, output_file=output_file, init_offset=vertex_offset, y_up=y_up)
     return
 
-def add_twist(pos, theta, twist_indices=None, twist_values=None, twist_rate=0.8,
-                angular_curl_freq=2*np.pi, indices_per_curl=20):
+def add_twist(pos, theta, twist_rate=0.8):
     """
-    Add twist to a rod by injecting twist at selected indices.
+    Injecting twist at randomly selected vertices.
 
     Parameters:
     - pos: (N, 3) array of vertex positions.
     - theta: twist angles (N-1,) — passed through RodHelixConverter.
-    - twist_indices: array of indices to apply cumulative twist (optional).
-    - twist_values: array of twist angles in radians (optional, same length as twist_indices).
-    - twist_rate: fraction of vertices to twist (used if twist_indices is None).
-    - twists_per_curl: desired number of twists per curl (used only for computing default twist_rate).
-    - angular_curl_freq: angular frequency of the helix (radians per index).
-    - indices_per_curl: number of indices per curl (used only for computing default twist_rate).
+    - twist_rate: fraction of vertices to twist.
 
     Returns:
-    - pos_out, theta_out: positions and twists after applying cumulative twist.
+    - pos_out, theta_out: positions and twists after applying twist.
     """
     helix = RodHelixConverter.rod_to_helix(pos=pos, theta=theta)
     num_vertices = len(pos)
     num_twist_indices = len(helix.q) // 3
 
     # Determine how many total twist applications to apply
-    if twist_indices is None:
-        twist_rate = twists_per_curl / indices_per_curl if twist_rate is None else twist_rate
-        total_twists = int(twist_rate * num_vertices)
-        twist_indices = np.random.choice(np.arange(num_twist_indices), size=total_twists, replace=False)
-    if twist_values is None:
-        twist_values = np.random.uniform(-np.pi, np.pi, size=len(twist_indices))
+    total_twists = int(twist_rate * num_vertices)
+    twist_indices = np.random.choice(np.arange(num_twist_indices), size=total_twists, replace=False)
+    twist_values = np.random.uniform(-np.pi, np.pi, size=len(twist_indices))
 
     twist_indices = np.array(twist_indices)
     twist_values = np.array(twist_values)
@@ -89,7 +80,6 @@ def in_to_meters(x):
 def step_wrapper(i, pos, theta, sim, n_steps=10):
     for _ in range(n_steps):
         pos, theta = sim.step(pos=pos, theta=theta)
-    # print(f"Post-{n_steps}-step theta diff:", np.linalg.norm(theta - sim.init_state.theta0))
     return i, pos, theta, sim
 
 #################### Sampling ################################
@@ -173,7 +163,7 @@ def main():
         'labels': strand_labels  # list of dicts
     }
 
-    np.save("sampling_test.npy", data_to_save, allow_pickle=True)
+    # np.save("sampling_test.npy", data_to_save, allow_pickle=True)
 
     # Running Simulation
 
