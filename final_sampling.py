@@ -114,7 +114,7 @@ def main():
         # [0.1, 1.0]          # twist prevalence
     ])
 
-    n_strands = 5
+    n_strands = 10
     n_params = param_bounds.shape[0]
     sampler = qmc.LatinHypercube(d=n_params)
     lhs_sample = sampler.random(n=n_strands)
@@ -168,7 +168,7 @@ def main():
     # Running Simulation
 
     tracking_freq = 20
-    progress = tqdm(range(800 * tracking_freq))
+    progress = tqdm(range(2 * tracking_freq)) # 800 used currently
     with ProcessPoolExecutor() as executor:
         for i in progress:
             futures = [executor.submit(step_wrapper, j, poses[j], thetas[j], sims[j], n_steps=1) for j in range(n_strands)]
@@ -180,15 +180,24 @@ def main():
             if i % tracking_freq == 0:
                 progress.set_description(f"Frame {i // tracking_freq}")
                 strands_to_one_objs(np.array(poses), i // tracking_freq + 1)
+    
+    # Go through post-simulation strands and compute bishop + local material frames
+    bishop_frames = []
+    material_frames = []
+    for (pos, theta) in zip(poses, thetas):
+        strand_bishop_frame = RodUtil.compute_bishop_frames(pos)
+        bishop_frames.append(strand_bishop_frame)
+        material_frames.append(RodUtil.compute_material_frames(theta, strand_bishop_frame))
 
     data_to_save = {
         'poses': poses,  # list of numpy arrays
-        'labels': strand_labels  # list of dicts
+        'labels': strand_labels,  # list of dicts
+        'bishop_frames': bishop_frames, # list of arrays
+        'material_frames': material_frames # list of arrays
     }
 
-    # np.save("more_twist_samples.npy", data_to_save, allow_pickle=True)
+    # np.save("saving_data.npy", data_to_save, allow_pickle=True)
     return
-
 
 if __name__ == "__main__":
     main()
